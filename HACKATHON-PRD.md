@@ -63,6 +63,8 @@ Trading follows real market structure: negotiated bilaterally through a request-
 
 Interest is where private data meets public settlement. Loan economics (spread, day-count, reset notices) are confidential. A Chainlink CRE confidential workflow ingests the agent bank's interest reset notice inside a trusted execution environment, computes accrual per holder, and posts only the resulting distribution to Hedera. A Scheduled Transaction then pays every holder pro-rata in the HTS stablecoin on the payment date.
 
+Privacy is designed in from the start, in three layers with three owners. The hackathon demo runs on the public Hedera testnet because the track requires it and because HashScan makes every claim verifiable. For production, the unchanged codebase deploys to HashSphere, Hashgraph's private permissioned network with the same services, so ownership and settlement are visible only to the participating institutions. Loan terms and accrual computation stay inside Chainlink CRE's TEE and never touch any ledger. Institutional identity and internal trade approval stay inside Privy. See the Privacy Architecture section for the full mapping.
+
 **Hackathon Track Alignment**
 
 The Tokenisation of Anything track asks for "real asset classes and real lifecycle management" built with ATS, and lists a secondary market for ATS assets as extra points because the Studio does not have one today. SyndicateLend hits every extra-points item in the track description:
@@ -198,6 +200,26 @@ The Innovation rubric rewards solutions that can plug into existing ecosystem pl
 8. The engine posts a trade confirmation to HCS. The blotter updates from the mirror node. HashScan link shown.
 
 A note on design accuracy: a Hedera Scheduled Transaction wraps exactly one transaction body, and an atomic batch (HIP-551) cannot itself be scheduled. Atomicity therefore lives inside the `settle` call, and the Scheduled Transaction provides deferred execution and on-chain visibility of the pending settlement. See Design Decisions for the alternative that was considered.
+
+### Privacy Architecture
+
+Syndicated loans are private contracts between private parties. Who holds a piece, at what price it traded, and on what terms interest accrues are all confidential. Institutions will not put any of that on a public ledger. SyndicateLend is designed so that the hackathon demo runs on the public testnet, as the track requires, while the production deployment keeps every sensitive element private. Privacy is layered, and each layer has an owner.
+
+| Layer | What is private | Provided by | Hackathon | Production |
+|-------|----------------|-------------|-----------|------------|
+| **Ownership and settlement** | Who holds which facility, balances, trade prices, settlement flows | **HashSphere**, Hashgraph's private permissioned network built on the same Hiero codebase and services as the public network | Public testnet (track requirement, and it makes the demo verifiable on HashScan) | HashSphere, operated by a consortium of participating institutions, with the same ATS contracts, HTS, HCS, and Scheduled Transactions deployed unchanged |
+| **Loan economics and computation** | Spread, day-count, reset notices, per-holder accrual | **Chainlink CRE confidential compute (TEE)** | Live in the demo | Same, with the TEE report written to HashSphere |
+| **Identity and internal approval** | Which individuals sit behind a desk, their roles, who approved what internally | **Privy** embedded wallets and quorum policies | Live in the demo | Same, with Privy's key management or an institutional custodian through ATS partner integrations |
+| **Negotiation** | RFQ content, quotes | HCS topic with encrypted message payloads; topic submit key restricted to participants | Plain-text HCS messages for demo legibility, encryption flagged in the UI | Encrypted payloads on a private HashSphere topic |
+
+Why this split matters:
+
+- **Nothing in the application changes between testnet and HashSphere.** HashSphere runs the same services, so the ATS contracts, the settlement engine, the schedule calls, and the HCS topics deploy as they are. The hackathon build is the production build; only the network endpoint and the participant set change.
+- **Privacy is separated by concern.** The ledger keeps ownership private from the world. The TEE keeps terms private from the ledger operator and from other lenders. Privy keeps people and internal governance private from counterparties. No single layer is asked to do all three.
+- **Auditability is retained.** Regulators and auditors join HashSphere as observer nodes or read-only accounts, the same role HashPack observers play in the demo. Privacy from the public is not privacy from supervision.
+- **Interoperability is not lost.** HashSphere is designed to interoperate with the public Hedera network, so a loan token can later be bridged to public settlement or to other chains under compliance if the participants choose.
+
+This is the answer to the first question every bank asks about a public-chain design, and it should appear on the architecture slide in the pitch.
 
 ---
 
@@ -410,12 +432,13 @@ The Execution rubric explicitly scores UI/UX. Institutional users judge software
 | Interest computation | On-chain from public terms; off-chain by the venue; CRE confidential workflow | CRE confidential workflow | Loan terms are private. Public on-chain computation leaks the spread. Venue computation is a trusted third party. CRE keeps the terms private and the result verifiable. |
 | Market structure | Order book; RFQ | RFQ | Loans trade bilaterally. RFQ is realistic and needs no matching engine. |
 | Front end | Extend ATS web app; custom app on ATS SDK | Custom app | ATS web app is a token admin panel. Traders need a blotter and portfolio view. The SDK is the reusable part. |
+| Production network | Public Hedera mainnet with encrypted state; a bank-run private chain (Fabric, DAML, Onyx-style); HashSphere | HashSphere | Public mainnet exposes positions and prices, which institutions will not accept. A bespoke private chain loses ATS, HTS, HCS, and Scheduled Transactions and becomes a custom build. HashSphere keeps every Hedera service and the exact hackathon codebase while making ownership and settlement private to the consortium. Demo stays on public testnet as the track requires. |
 
 ### Post-Hackathon Roadmap
 
 - **Month 1-2:** Present to the LSTA technology and innovation working group. Five conversations with loan operations leads at CLO managers and agent banks. Implement the deemed-consent window for assignee eligibility. Replace mock KYC with a provider integrated through ATS external KYC lists.
 - **Month 3-6:** Design partner pilot with one CLO manager and one agent bank on a shadow register (tokenised mirror of a real facility, no legal transfer of ownership). Legal opinion on the token structure. Integration with ClearPar or LoanIQ as a settlement instruction source. Upstream the settlement engine and RFQ module to ATS.
-- **Month 6-12:** First legally binding tokenised assignment under a participation or assignment agreement. Multi-tranche facilities using ERC-1410 partitions. Production key management (Fireblocks or HSM through ATS integrations). Regulated stablecoin as the cash leg.
+- **Month 6-12:** Deploy the unchanged codebase to a HashSphere consortium network with the pilot institutions as members and a regulator or auditor as observer. First legally binding tokenised assignment under a participation or assignment agreement. Multi-tranche facilities using ERC-1410 partitions. Production key management (Fireblocks or HSM through ATS integrations). Regulated stablecoin as the cash leg. Encrypted HCS payloads for RFQ.
 
 ---
 
@@ -511,7 +534,7 @@ Five minutes total. Hedera must be visible as the reason the solution works, not
 
 1. **The Problem (30 sec):** "A fund sells $5M of a term loan to an insurer. They agree the price in ten minutes. The trade settles in three weeks. The market is so used to this that it built a compensation scheme to apologise for it. $1T of these trades happened last year."
 2. **The Solution (60 sec):** Show the register on HashScan. Show an RFQ agreed in the blotter. Show two desks approving through Privy quorum. Show the scheduled settlement sitting on HashScan before it executes. Show it execute: both legs in one transaction. "Three weeks became one day, and the compliance check ran inside the transfer."
-3. **Hedera Integration (45 sec):** ATS gave us an audited compliant register on day one. Scheduled Transactions let the trade schedule its own settlement with no bot. HTS gave the cash leg the same KYC controls as the asset. HCS is the audit trail. CRE computed interest on private terms and Hedera paid every holder. "Five services, each doing a job that would otherwise be a custom contract or an off-chain server."
+3. **Hedera Integration (45 sec):** ATS gave us an audited compliant register on day one. Scheduled Transactions let the trade schedule its own settlement with no bot. HTS gave the cash leg the same KYC controls as the asset. HCS is the audit trail. CRE computed interest on private terms and Hedera paid every holder. "Five services, each doing a job that would otherwise be a custom contract or an off-chain server." Then the privacy slide: "You're seeing this on public testnet so you can verify it on HashScan. In production the same code runs on HashSphere, so ownership and settlement are private to the consortium. Loan terms live in Chainlink's TEE. People and approvals live in Privy. Three privacy layers, nothing rebuilt."
 4. **Traction (30 sec):** Practitioner feedback quotes from the hackathon cycle. ATS maintainer feedback. Interest from the LSTA working group if obtained. Be honest about stage.
 5. **The Opportunity (30 sec):** $1.4T outstanding, $1T traded per year, fee pool of $100M to $200M at incumbent settlement pricing. Versana proved institutions will share data; Galaxy proved they will hold credit on-chain. Nobody has moved ownership on-chain yet.
 6. **The Ask / Next Steps (15 sec):** Introductions to agent banks and CLO managers for a shadow-register pilot. Upstream the settlement engine to ATS.
@@ -536,7 +559,8 @@ Every number on a slide gets a source in the footer. The Pitch rubric's 5 requir
 
 | Question | Answer |
 |----------|--------|
-| Why not a private chain like the banks use? | Private chains work when one bank runs them for its own clients. A syndicated loan has 150 lenders and no natural operator. A public network with permissioned tokens is the only structure where the register is neutral. Hedera's council governance is the closest thing to a consortium a public chain offers. |
+| Banks will never put positions and prices on a public chain. How is this viable? | They won't, and they don't have to. The demo runs on public testnet because the track requires it and because HashScan makes it verifiable. Production runs on HashSphere, Hashgraph's private permissioned network with the same services, so ownership and settlement are visible only to the consortium. Loan terms never touch any ledger; they are computed inside Chainlink CRE's TEE. Individuals and internal approvals stay inside Privy. Three privacy layers, three owners, and the codebase does not change. |
+| Why not a private chain like the banks already use? | Bank-run chains work when one bank runs them for its own clients. A syndicated loan has 150 lenders and no natural operator, so the register must be neutral. HashSphere gives a consortium-run network that keeps ATS, HTS, HCS, and Scheduled Transactions, so we get neutrality and privacy without rebuilding the settlement stack on Fabric or DAML. |
 | Why Hedera over Ethereum? | Three things Hedera has natively that would be custom escrow contracts elsewhere: Scheduled Transactions for deferred, on-chain-visible settlement; HTS compliance keys on the cash leg; and ATS, which gave us an audited ERC-3643 register on day one. Fixed fees matter for institutions that need to budget. |
 | Is a loan token a security? | A loan piece is already a financial instrument transferred under LSTA assignment or participation agreements. The token represents the same interest under the same agreement. ERC-3643 was designed for exactly this compliance model. Legal opinion is roadmap month 3. |
 | Who is the issuer of the token? | The agent bank, which already keeps the register. SyndicateLend is the tooling; the agent bank holds the issuer role in ATS. Shadow registers let an agent bank mirror a facility before it commits to the token as the register of record. |
