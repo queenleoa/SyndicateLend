@@ -3,7 +3,7 @@
 **Track:** Tokenisation of Anything (Asset Tokenization Studio)
 **Secondary bounties targeted:** Chainlink "Best Confidential Workflow" ($2,000, up to 2 teams at $1,000), Privy "Best B2B Financial Product" ($2,500)
 **Team:** Solo founder
-**Build window:** 5 days, ~55 hours
+**Build window:** 5 days, ~68 hours
 **Network:** Hedera testnet
 
 ---
@@ -74,7 +74,8 @@ The Tokenisation of Anything track asks for "real asset classes and real lifecyc
 | Secondary market for ATS-issued assets | RFQ marketplace with atomic DvP settlement |
 | Compliance controls in use | KYC grants on both loan token and stablecoin, transfer restrictions via ERC-3643 compliance, freeze on default, pause on facility amendment |
 | Coupon or dividend distributions | Pro-rata interest distribution to all holders |
-| Oracle integration for pricing or NAV | CRE workflow delivers accrual data; same channel can carry loan marks |
+| Oracle integration for pricing or NAV | The same CRE workflow fetches the public benchmark rate (e.g. SOFR) it needs for accrual and posts that rate plus the aggregate distribution total to HCS as a public reference feed. Both are already-public numbers, so this costs nothing in confidentiality and gives every facility a running NAV-adjacent mark. |
+| Custom fee schedules | The RFQ HCS topic carries a small fixed HBAR fee per message (`CustomFixedFee`, fee-schedule key held by the venue operator), modelling a venue/matching fee the way a real trading venue would charge one. |
 | Scheduled Transactions for coupon payments or settlement | Used for both trade settlement and interest payment |
 | Contributions back upstream to ATS | Settlement engine and RFQ module designed as ATS-compatible extensions (see Parking Lot) |
 
@@ -86,7 +87,7 @@ Build order is by judging impact. Execution and Success are 40% of the score, so
 2. **Atomic DvP settlement via Scheduled Transaction.** A `SettlementEngine` contract moves the loan token and the HTS stablecoin in one execution. The call is scheduled for the settlement date. This is the feature that answers the problem statement and the one judges will remember.
 3. **Privy quorum approval on settlement.** A desk's trader, compliance officer, and PM must reach a 2-of-3 approval before the desk's wallet signs the settlement approval. This is the real B2B workflow and the differentiator from every other DvP demo.
 4. **CRE confidential accrual workflow.** HCS commitment in, `handlerInTee` verifies the notice against that commitment and computes accrual inside a TEE, per-holder distribution out, paid through a Scheduled Transaction. The confidential portion is not a placeholder: the accrual math only runs if the enclave's hash check against the HCS commitment passes. Covers the track's oracle and coupon asks and the Chainlink "Best Confidential Workflow" bounty in one feature.
-5. **RFQ flow with HCS audit trail.** Request, quote, accept, all as HCS messages, rendered in a trading blotter. If time runs short, simplify to a matched-order log with the same HCS backing.
+5. **RFQ flow with HCS audit trail.** Request, quote, accept, all as HCS messages on a topic with a `CustomFixedFee` venue charge, rendered in a trading blotter.
 
 ### Non-Goals (v1)
 
@@ -111,7 +112,7 @@ Build order is by judging impact. Execution and Success are 40% of the score, so
 | **Smart Contracts (EVM)** | `SettlementEngine` executes both legs of a trade in one call. `InterestDistributor` receives the CRE report and prepares the payment. Both verified on HashScan. | The ERC-3643 token leg is an EVM call, so the atomic unit that contains both legs must be an EVM call. The HTS system contract lets that call move the stablecoin natively. |
 | **Hedera Token Service (HTS)** | Permissioned mock-USD stablecoin with KYC key, freeze key, and pause key. KYC is granted to an account only after the same identity is verified in the ATS identity registry. | Native HTS compliance keys give the cash leg the same eligibility controls as the asset leg without a second compliance contract. Fixed, predictable fees for the highest-volume operation. |
 | **Scheduled Transactions (HSS)** | Two uses. (a) `SettlementEngine.settle(tradeId)` is scheduled for the agreed settlement date and executes without a bot. (b) Interest distribution is a scheduled HTS transfer from the paying agent to all holders, executed on the payment date once the paying agent signs. | Hedera is the only major network with native deferred execution and on-network signature collection. The settlement instruction is visible on HashScan before it executes, which is exactly what a loan operations team needs. |
-| **Hedera Consensus Service (HCS)** | One topic per facility for RFQ messages, quotes, acceptances, and trade confirmations. A second topic for agent-bank notices, which the CRE workflow reads as its input feed. | Ordered, timestamped, tamper-proof. Replaces the email and Bloomberg chat trail that loan desks keep for audit today. Cheap enough to log every negotiation step. |
+| **Hedera Consensus Service (HCS)** | One topic per facility for RFQ messages, quotes, acceptances, and trade confirmations, with a small `CustomFixedFee` per message modelling a venue fee. A second topic for agent-bank notice commitments, which the CRE workflow reads and verifies against. A third channel (or the notice topic, reused) carries the public benchmark rate and aggregate distribution as a NAV-adjacent reference feed. | Ordered, timestamped, tamper-proof. Replaces the email and Bloomberg chat trail that loan desks keep for audit today. Cheap enough to log every negotiation step, and the custom fee schedule shows HCS doing venue economics, not just logging. |
 | **Mirror Node** | Portfolio view, trade history, holder list for interest distribution, schedule status polling. | Read-only queries at no cost; standard for any front end. |
 
 ### Ecosystem Integrations
@@ -139,58 +140,93 @@ The Innovation rubric rewards solutions that can plug into existing ecosystem pl
 
 ### Architecture Diagram
 
+```mermaid
+flowchart TB
+    subgraph Client["Client - Next.js Front End"]
+        UI["Blotter, Portfolio, RFQ, Approvals, Register"]
+    end
+
+    subgraph Eco["Off-Chain / Ecosystem"]
+        Privy["Privy: embedded wallets + 2-of-3 quorum policy"]
+        HashPack["HashPack: self-custody + observer connect"]
+        CRE["Chainlink CRE: handlerInTee confidential workflow, TEE"]
+        Relayer["Relayer: delivers DON-signed report"]
+        AgentBank["Agent Bank: notice source"]
+    end
+
+    subgraph Hedera["Hedera Testnet"]
+        HCS["HCS Topics: RFQ, notice commitment, NAV feed"]
+        ATS["ATS Loan Token, ERC-3643: identity registry + compliance"]
+        SE["SettlementEngine"]
+        IntDist["InterestDistributor"]
+        HTS["HTS Stablecoin: KYC, freeze, pause"]
+        Sched["Scheduled Transactions"]
+        Mirror["Mirror Node"]
+    end
+
+    UI --> Privy
+    UI --> HCS
+    UI --> Mirror
+    HashPack --> UI
+
+    Privy -->|signs approve| SE
+    SE --> Sched
+    SE --> ATS
+    SE --> HTS
+
+    AgentBank -->|1 posts commitment| HCS
+    HCS -->|2 relayer reads commitment| Relayer
+    Relayer -->|3 fires trigger: topic and sequence| CRE
+    AgentBank -->|4 notice, inside enclave| CRE
+    Mirror -->|5 commitment hash, holder register, benchmark rate| CRE
+    CRE -->|6 signed report| Relayer
+    Relayer -->|7 distribution| IntDist
+    IntDist --> Sched
+    Sched --> HTS
 ```
-                     ┌─────────────────────────────────────────────────────┐
-                     │              SyndicateLend Front End                │
-                     │   Next.js · ATS SDK · Hedera SDK · Privy · HashPack │
-                     │   [Blotter] [Portfolio] [RFQ] [Approvals] [Register]│
-                     └──────┬───────────────┬───────────────┬──────────────┘
-                            │               │               │
-              login/sign    │        RFQ    │        reads  │
-                            ▼               ▼               ▼
-                  ┌───────────────┐  ┌────────────┐  ┌──────────────┐
-                  │     Privy     │  │ HCS Topics │  │ Mirror Node  │
-                  │ embedded      │  │ facility   │  │ balances     │
-                  │ wallets       │  │ rfq + notice│ │ schedules    │
-                  │ 2-of-3 quorum │  └─────┬──────┘  │ history      │
-                  └──────┬────────┘        │         └──────────────┘
-                         │                 │ reads notices
-                         │ signs           ▼
-                         │        ┌─────────────────────┐
-                         │        │   Chainlink CRE     │
-                         │        │ confidential workflow│
-                         │        │ TEE: notice → accrual│
-                         │        └─────────┬───────────┘
-                         │                  │ writes distribution
-   ══════════════════════╪══════════════════╪══════════════ Hedera testnet ══
-                         ▼                  ▼
-   ┌────────────────────────────┐   ┌───────────────────────┐
-   │  ATS Loan Token (ERC-3643) │   │  InterestDistributor  │
-   │  identity registry = KYC   │   │  holders × accrual     │
-   │  compliance = eligibility  │   └──────────┬────────────┘
-   │  freeze / pause / snapshot │              │ creates
-   └──────────────┬─────────────┘              ▼
-                  │ transferFrom      ┌────────────────────────┐
-                  ▼                   │  Scheduled Transaction │
-   ┌────────────────────────────┐    │  HTS transfer to holders│
-   │     SettlementEngine       │    │  paying agent signs     │
-   │  approve(tradeId) ×2       │    └────────────────────────┘
-   │  settle(tradeId):          │
-   │    loan token  seller→buyer│◄─── Scheduled Transaction
-   │    stablecoin  buyer→seller│     ContractExecute at T+1
-   │    both or neither         │
-   └──────────────┬─────────────┘
-                  │ HTS system contract (0x167)
-                  ▼
-   ┌────────────────────────────┐
-   │  HTS mock-USD stablecoin   │
-   │  KYC key · freeze · pause  │
-   └────────────────────────────┘
-```
+
+*Numbered edges trace the interest distribution path; unlabelled edges are the settlement and register path, detailed in the sequence diagrams below.*
 
 ### Settlement Flow (the demo's centrepiece)
 
-1. Seller posts an RFQ on the facility's HCS topic: facility, par amount, side.
+```mermaid
+sequenceDiagram
+    participant Seller
+    participant Buyer
+    participant HCS as HCS Topic
+    participant Privy
+    participant SE as SettlementEngine
+    participant HSS as Schedule Service
+    participant ATS as ATS Loan Token
+    participant HTS as HTS Stablecoin
+
+    Seller->>HCS: 1. Post RFQ (facility, par, side)
+    Buyer->>HCS: 2. Post quote (price percent of par)
+    Seller->>HCS: Accept
+    Note over HCS: All three timestamped at consensus
+
+    Seller->>SE: 3. Create trade (parties, amount, T+1)
+    Seller->>ATS: 4. Grant ERC-3643 allowance
+    Buyer->>HTS: 4. Grant HTS allowance
+
+    Seller->>Privy: 5. approve(tradeId)
+    Privy->>Privy: 2-of-3 quorum (trader, compliance, PM)
+    Privy->>SE: signed approve
+    Buyer->>Privy: 5. approve(tradeId)
+    Privy->>SE: signed approve
+
+    SE->>HSS: 6. scheduleCall settle(tradeId) at T+1
+    HSS->>SE: 7. executes at settlement date
+    SE->>ATS: transferFrom seller to buyer
+    SE->>HTS: transfer buyer to seller
+    Note over SE: Both legs succeed or both revert
+
+    SE->>HCS: 8. Post trade confirmation
+    HCS-->>Buyer: Blotter updates via Mirror Node
+    HCS-->>Seller: Blotter updates via Mirror Node
+```
+
+1. Seller posts an RFQ on the facility's HCS topic: facility, par amount, side. The topic's custom fee schedule collects a small HBAR venue fee on the message.
 2. Buyer responds with a quote (price as percentage of par). Seller accepts. All three messages land on HCS with consensus timestamps.
 3. Front end creates the trade in `SettlementEngine` with both parties, amounts, and settlement date T+1.
 4. Seller grants the engine an ERC-3643 allowance for the loan tokens. Buyer grants an HTS allowance for the stablecoin. Both are ordinary approvals from each party's Privy wallet.
@@ -205,20 +241,77 @@ A note on design accuracy: a Hedera Scheduled Transaction wraps exactly one tran
 
 The accrual computation is designed so that what went into it is provably the notice anchored to the audit trail at a specific consensus timestamp, without ever putting the notice itself on any ledger.
 
+```mermaid
+sequenceDiagram
+    participant Bank as Agent Bank
+    participant HCS as HCS Notice Topic
+    participant Relayer
+    participant TEE as CRE Enclave, handlerInTee
+    participant Mirror as Mirror Node
+    participant DON as Workflow DON
+    participant IntDist as InterestDistributor
+    participant HSS as Scheduled Transaction
+    participant Holders
+
+    Bank->>Bank: Generate nonce, compute hash of notice and nonce
+    Bank->>HCS: 1. Post commitment hash (public, cheap)
+    Note over HCS: Consensus timestamp anchors the commitment
+
+    Relayer->>TEE: 2. Fire HTTP trigger (topic ID, sequence number only)
+    TEE->>Bank: 3. Fetch notice and nonce, secret-gated HTTP, inside enclave
+    TEE->>Mirror: 4. Read committed hash at topic and sequence
+    TEE->>TEE: Recompute hash, compare to commitment
+    Note over TEE: Abort on mismatch, no distribution without a match
+
+    TEE->>Mirror: Fetch holder register
+    TEE->>TEE: 5. Compute per-holder accrual, spread and day-count stay in enclave
+    TEE->>Mirror: 6. Fetch public benchmark rate for NAV feed
+    TEE->>DON: 7. usingTheDons, cross only distribution and rate out
+    DON->>DON: Verify enclave attestation, sign report
+
+    DON->>Relayer: Signed report
+    Relayer->>IntDist: 8. Submit report (Hedera is not a native CRE write target)
+    Relayer->>HCS: Post benchmark rate and aggregate distribution (NAV feed)
+    IntDist->>HSS: 9. Schedule pro-rata HTS transfer
+    HSS->>Holders: Paying agent signs, holders paid
+```
+
 1. The agent bank generates a random 32-byte nonce and computes `hash(notice || nonce)`. It posts that hash, plus the facility ID and reset date, as a plain HCS message to the agent-bank notice topic. This is a public, cheap transaction; the notice content is not in it. HashScan shows the commitment's consensus timestamp and sequence number immediately.
 2. A relayer fires the CRE workflow's HTTP trigger with only the topic ID and sequence number of that commitment as the payload, not the notice itself.
 3. The workflow's `handlerInTee` handler runs inside a Nitro TEE. It fetches an API key with `runtime.getSecret()`, decrypted only inside the enclave, and uses it to pull the actual notice and nonce from the agent bank's endpoint over an HTTP request made from inside the enclave.
 4. Still inside the enclave, it reads the mirror node for the HCS message at that topic and sequence number, recomputes `hash(notice || nonce)`, and compares it to the committed hash. If they don't match, the workflow aborts, so a distribution can never be produced from a notice that wasn't the one anchored to the audit trail.
 5. Only after the check passes does the enclave compute accrual per holder from the loan's spread, day-count convention, and holder register. The spread and day-count never leave the enclave.
-6. The workflow calls `runtime.usingTheDons()` to cross back to the Workflow DON with only the per-holder distribution (not the notice, not the spread), which the DON signs as a report after verifying the enclave's attestation.
-7. Because Hedera does not yet appear as a CRE write target, a relayer takes that signed report and submits it to `InterestDistributor` on Hedera via the Hedera SDK, rather than CRE writing onchain natively. The report and its DON signatures are what the contract checks, not the relayer's say-so.
-8. `InterestDistributor` schedules an HTS transfer to every holder, pro-rata, executed on the payment date once the paying agent signs. The blotter shows the HCS commitment, the workflow's execution evidence (simulation log or deployment record), and the payment schedule as one linked trail.
+6. Still inside the enclave, the workflow also fetches the public benchmark rate it needs for the floating-rate calculation (e.g. SOFR, already public data with no confidentiality requirement). This becomes the oracle/NAV feed in step 8, at no extra cost since the workflow already has to fetch it to compute accrual.
+7. The workflow calls `runtime.usingTheDons()` to cross back to the Workflow DON with only the per-holder distribution and the public benchmark rate (not the notice, not the spread), which the DON signs as a report after verifying the enclave's attestation.
+8. Because Hedera does not yet appear as a CRE write target, a relayer takes that signed report and submits it to `InterestDistributor` on Hedera via the Hedera SDK, rather than CRE writing onchain natively. The report and its DON signatures are what the contract checks, not the relayer's say-so. The relayer also posts the benchmark rate and the aggregate distribution total to HCS as a public reference feed.
+9. `InterestDistributor` schedules an HTS transfer to every holder, pro-rata, executed on the payment date once the paying agent signs. The blotter shows the HCS commitment, the workflow's execution evidence (simulation log or deployment record), the reference feed, and the payment schedule as one linked trail.
 
 This is the strong version of an HCS audit trail: it is not just a log that a notice was issued, it is a commitment that the enclave is cryptographically bound to before it is allowed to compute anything. An auditor with no special access can pull the HCS message and the workflow's public source, and confirm the two are the same computation.
 
 ### Privacy Architecture
 
 Syndicated loans are private contracts between private parties. Who holds a piece, at what price it traded, and on what terms interest accrues are all confidential. Institutions will not put any of that on a public ledger. SyndicateLend is designed so that the hackathon demo runs on the public testnet, as the track requires, while the production deployment keeps every sensitive element private. Privacy is layered, and each layer has an owner.
+
+```mermaid
+flowchart LR
+    subgraph L1["Ownership and Settlement"]
+        HS["HashSphere in production, public testnet in the hackathon demo"]
+    end
+
+    subgraph L2["Loan Economics and Computation"]
+        TEEBox["Chainlink CRE TEE: spread, day-count, reset notices, per-holder accrual"]
+    end
+
+    subgraph L3["Identity and Internal Approval"]
+        PrivyBox["Privy embedded wallets and quorum policies: individuals, roles, approvals"]
+    end
+
+    Aud["Regulators and Auditors: observer nodes, read-only accounts"]
+
+    L1 --> Aud
+    L2 -->|only the signed report crosses out| L1
+    L3 -->|only the signature crosses out| L1
+```
 
 | Layer | What is private | Provided by | Hackathon | Production |
 |-------|----------------|-------------|-----------|------------|
@@ -348,7 +441,7 @@ The institutional projects (Kinexys, DLR, HQLAx, DAP) prove that the mechanism w
 | HIP-1215 `scheduleCall` from within a contract behaves unexpectedly on testnet | Medium | Fallback: backend creates the `ScheduleCreateTransaction` wrapping `ContractExecuteTransaction` with the SDK. Same user-visible behaviour. |
 | ATS ERC-3643 mode requires deploying a separate compliance and identity registry contract | High (this is how ATS works) | Use ATS's own identity registry and compliance contracts from the repo. Budget half a day. Reuse the ATS testnet deployment addresses where the SDK supports them. |
 | HTS transfer to many holders in one scheduled transaction hits the per-transaction transfer limit | Low for demo (3 to 5 holders) | For larger holder counts, batch into multiple scheduled transfers per period. Note in roadmap. |
-| Solo builder runs out of hours | Medium | Features are ordered so that a demo exists from day 2. RFQ (feature 5) degrades to a matched-order log. CRE (feature 4) degrades to the relayer fallback. |
+| Solo builder runs out of hours | Low, given the time available | All MVP features are P0; none are scoped as optional. Build order still matters for sequencing (a demo exists from day 2 regardless of what's left), but nothing on the list is planned to be dropped. If an unexpected blocker eats a day, the CRE relayer path and the `scheduleCall` SDK fallback (already the primary design, not emergency fallbacks) absorb the risk without cutting a feature. |
 
 ### Business Model (Lean Canvas)
 
@@ -383,26 +476,27 @@ The value is not "a database on a blockchain." It is that ownership, transfer, c
 | Scheduled settlement: HSS `scheduleCall` from contract, SDK fallback | P0 | 4h | Scheduled Transactions |
 | Privy login, embedded wallet, Hedera account creation, 2-of-3 quorum policy on `approve` | P0 | 6h | Privy |
 | Front end: blotter, portfolio, register view, approvals inbox, HashScan links | P0 | 10h | Mirror Node |
-| `InterestDistributor` contract and CRE confidential workflow (notice in, accrual out) | P1 | 8h | CRE, Smart Contracts |
-| Scheduled interest distribution signed by paying agent | P1 | 2h | Scheduled Transactions, HTS |
-| RFQ flow on HCS topic (request, quote, accept, confirm) | P1 | 5h | HCS |
-| HashPack connect for observer access | P1 | 1h | HashPack |
-| Freeze and pause demo (borrower default, facility amendment) | P1 | 1h | ATS |
-| Public testnet walkthrough page with in-app feedback form (validation tier 3) | P1 | 2h | Mirror Node |
-| ATS upstream: GitHub issue describing the secondary-market extension, draft PR skeleton | P1 | 1h | ATS |
+| `InterestDistributor` contract and CRE confidential workflow: HCS commitment, `handlerInTee`, hash verification, DON-signed report | P0 | 9h | CRE, Smart Contracts |
+| Scheduled interest distribution signed by paying agent, plus benchmark-rate/NAV reference post to HCS | P0 | 2h | Scheduled Transactions, HTS |
+| RFQ flow on HCS topic (request, quote, accept, confirm), with `CustomFixedFee` venue fee on the topic | P0 | 5.5h | HCS |
+| HashPack connect for observer access | P0 | 1h | HashPack |
+| Freeze and pause demo (borrower default, facility amendment) | P0 | 1h | ATS |
+| Public testnet walkthrough page with in-app feedback form (validation tier 3) | P0 | 2h | Mirror Node |
+| ATS upstream: GitHub issue describing the secondary-market extension, draft PR skeleton | P0 | 1h | ATS |
+| Repository: make GitHub repo public, add MIT license, README with setup and architecture, confirm all deployed contracts verified on HashScan | P0 | 1h | HashScan |
 | README, demo video, submission | P0 | 5h | HashScan |
 
-Total: roughly 66 hours against a 55-hour budget. The RFQ polish and the CRE last-mile are the cut line; the walkthrough page and the ATS issue are cheap and each moves a 15% criterion, so they stay.
+Total: roughly 68 hours. Every feature above is committed, not a cut-line candidate: the qualification requirements for the main track plus both named bounties (Chainlink Confidential Workflow, Privy B2B) each depend on a different one of these rows, so none of them is optional. The relayer path for CRE report delivery and the SDK fallback for `scheduleCall` (see Risks) are technical hedges chosen up front, not scope cuts made under time pressure.
 
 ### Daily Plan
 
 | Day | Hours | Deliverable |
 |-----|-------|-------------|
-| 1 | 12 | Spikes resolved with go/no-go on Privy native signing and CRE write path. ATS loan token on testnet with 3 KYC'd holders. Stablecoin deployed. Message 5 practitioner contacts to book day-3 reviews. |
-| 2 | 12 | `SettlementEngine` tested and verified on HashScan. First atomic DvP executed via Scheduled Transaction from a script. A demo exists from this point. Sponsor SME review of quorum and CRE design (feedback cycle 1). |
-| 3 | 12 | Front end with blotter, portfolio, register. Privy login and quorum approval wired to `approve`. End-to-end trade from the UI. Record rough demo, send to practitioners (feedback cycle 2). Open ATS GitHub issue. |
-| 4 | 10 | CRE workflow and `InterestDistributor`. Interest paid via scheduled transfer. RFQ on HCS. Seed data for two facilities. Publish walkthrough page, onboard early adopters (feedback cycle 3). |
-| 5 | 9 | Incorporate feedback, freeze and pause demo, HashPack observer connect, README with architecture, HashScan links, and feedback changelog, five-minute video, submission. |
+| 1 | 13 | Spikes resolved with go/no-go on Privy native signing and CRE write path. ATS loan token on testnet with 3 KYC'd holders. Stablecoin deployed. Message 5 practitioner contacts to book day-3 reviews. |
+| 2 | 13 | `SettlementEngine` tested and verified on HashScan. First atomic DvP executed via Scheduled Transaction from a script. A demo exists from this point. Sponsor SME review of quorum and CRE design (feedback cycle 1). |
+| 3 | 14 | Front end with blotter, portfolio, register. Privy login and quorum approval wired to `approve`. RFQ topic live with its `CustomFixedFee` venue charge. End-to-end trade from the UI. Record rough demo, send to practitioners (feedback cycle 2). Open ATS GitHub issue. |
+| 4 | 15 | HCS notice-commitment flow, `handlerInTee` CRE workflow (fetch, verify, compute, cross to DON), benchmark-rate NAV post, and `InterestDistributor`. Interest paid via scheduled transfer. RFQ on HCS. Seed data for two facilities. Publish walkthrough page, onboard early adopters (feedback cycle 3). |
+| 5 | 13 | Incorporate feedback, freeze and pause demo, HashPack observer connect, repo made public with license, README with architecture, HashScan links, and feedback changelog, five-minute video, submission. |
 
 ### Definition of Done (what "fully functional" means for each feature)
 
@@ -416,8 +510,10 @@ The Execution rubric's 5 requires a fully functional solution, not a proof of co
 | Scheduled settlement | Schedule entity visible on HashScan before execution with its calldata. Executes at the settlement time without any off-chain trigger. Both balances change in the same consensus timestamp. |
 | Privy quorum | A single trader cannot approve. Compliance and PM approvals unlock the signature. The approvals inbox shows who approved and when. |
 | CRE accrual | HCS shows the salted-hash commitment before the run. The `handlerInTee` workflow's simulation log (or deployment execution log) shows the enclave fetched the notice, matched it against the HCS commitment, and only then computed accrual, with spread and day-count never appearing in the log. `InterestDistributor` holds per-holder amounts, delivered via a DON-signed report. Scheduled transfer pays every holder pro-rata on the payment date after the paying agent signs. |
-| RFQ | Request, quote, accept, confirm each produce an HCS message with a consensus timestamp shown in the blotter. |
+| RFQ | Request, quote, accept, confirm each produce an HCS message with a consensus timestamp shown in the blotter. The topic's `CustomFixedFee` charges a small HBAR fee per message, visible on HashScan. |
+| Oracle/NAV feed | The public benchmark rate and aggregate distribution total appear as an HCS message per interest period, independent of and alongside the confidential accrual computation. |
 | UX | A judge can complete a trade end-to-end from the README in under five minutes with no seed phrase, no HBAR, and no CLI. |
+| Repository | GitHub repo is public before the submission deadline, with an open-source license, a README covering setup and architecture, and every deployed contract's HashScan verification linked. |
 
 ### UX Principles
 
@@ -434,7 +530,7 @@ The Execution rubric explicitly scores UI/UX. Institutional users judge software
 
 | Member | Role | Key Responsibilities |
 |--------|------|---------------------|
-| Founder | Everything | Contracts, integration, front end, demo, pitch. Time-boxing is the leadership skill that matters here: each feature has a fallback and a cut line. Daily plan above is the strategy; the Definition of Done table is the quality bar. |
+| Founder | Everything | Contracts, integration, front end, demo, pitch. Time-boxing is still the discipline that matters: the daily plan sequences dependencies so a demo exists early, and every feature listed is built and shipped by day 5, none held back as optional. The Definition of Done table is the quality bar. |
 
 ### Design Decisions
 
@@ -594,10 +690,10 @@ Every number on a slide gets a source in the footer. The Pitch rubric's 5 requir
 |------|------|
 | 0:00 | Problem in one sentence over a HashScan view of the empty register |
 | 0:30 | Issue facility token via ATS, register three lenders, grant KYC, show a rejected transfer to an unverified account |
-| 1:30 | RFQ: request, quote, accept in the blotter; HCS topic view |
+| 1:30 | RFQ: request, quote, accept in the blotter; HCS topic view with the venue fee visible on HashScan |
 | 2:15 | Privy quorum: trader submits, compliance approves, PM approves, wallet signs |
 | 2:45 | Scheduled settlement visible on HashScan; executes; both balances change |
-| 3:30 | Interest: CRE workflow log (terms redacted), distribution scheduled, paying agent signs, holders paid |
+| 3:30 | Interest: HCS commitment hash, CRE workflow log showing the hash matched with no terms shown, benchmark-rate NAV post to HCS, distribution scheduled, paying agent signs, holders paid |
 | 4:15 | Freeze on default, pause on amendment |
 | 4:40 | Architecture slide, repo link, HashScan links |
 
@@ -609,7 +705,7 @@ Every number on a slide gets a source in the footer. The Pitch rubric's 5 requir
 - **ERC-1410 partitions for multi-tranche facilities.** One ATS security per facility, one partition per tranche.
 - **HIP-551 atomic batch settlement.** Two natively signed legs submitted as one batch, for desks with fast approval. Removes allowances and the settlement contract from the critical path.
 - **Repo collateral.** Post loan tokens as collateral against an HTS stablecoin loan, with programmatic release. Directly addresses the track's first idea.
-- **Loan marks via CRE.** Same workflow delivers daily marks from a pricing source for portfolio valuation and NAV.
+- **Richer NAV feed.** The MVP posts the public benchmark rate and aggregate distribution as a lightweight NAV-adjacent reference. Post-hackathon, extend the same workflow to pull a full pricing source and publish a proper daily mark per facility for portfolio valuation.
 - **Upstream to ATS.** Package `SettlementEngine` and the RFQ module as an ATS "secondary market" extension with a pull request to the ATS repo.
 - **Agent bank console.** Register management view for the agent bank: amendments, waivers, holder reports, snapshot at record date.
 - **Delayed compensation calculator.** Show, per trade, how much delayed comp would have accrued under LSTA rules versus zero on SyndicateLend. Strong pitch metric.
