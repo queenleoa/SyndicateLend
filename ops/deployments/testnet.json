@@ -57,7 +57,7 @@
       "evmAddress": "0x8ce724550b8608d6ade9d05f903f0657fc9f46c5",
       "accountId": "0.0.10459773",
       "usdKyc": true,
-      "loanEligible": false
+      "loanEligible": true
     },
     {
       "name": "Northgate Insurance",

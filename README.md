@@ -15,11 +15,20 @@ Full product spec: [HACKATHON-PRD.md](HACKATHON-PRD.md).
 | Artefact | Id | Inspect |
 |---|---|---|
 | Loan tranche (ATS bond-type security, Reg S, whitelist + internal KYC) | `0.0.10459721` / `0x1600f4a4609b9e9c48c432a16732da2634b7b1b7` | [HashScan](https://hashscan.io/testnet/contract/0.0.10459721) |
-| SettlementEngine (Sourcify exact match) | `0.0.10459674` / `0x36b7067ee318716b01adac233050b7346975bfc1` | [HashScan](https://hashscan.io/testnet/contract/0.0.10459674) |
+| SettlementEngine (Sourcify exact match) | `0.0.10460134` / `0x593D401cF80FAE8422a5aA113075cD2F464c297F` | [HashScan](https://hashscan.io/testnet/contract/0.0.10460134) |
 | Mock USD (HTS, KYC / freeze / pause keys) | `0.0.10459660` | [HashScan](https://hashscan.io/testnet/token/0.0.10459660) |
 | HCS RFQ topic | `0.0.10459663` | [HashScan](https://hashscan.io/testnet/topic/0.0.10459663) |
 | HCS notice-commitment topic | `0.0.10459666` | [HashScan](https://hashscan.io/testnet/topic/0.0.10459666) |
 | Administrative agent | `0.0.10457020` | [HashScan](https://hashscan.io/testnet/account/0.0.10457020) |
+
+### Settlement evidence (Day 2 core, same day)
+
+| Scenario | Result | Evidence |
+|---|---|---|
+| Trade 1: 5,000,000 par @ 99.00 for 4,950,000 mUSD, both desks approved, executed by the network's scheduled call at `settleAt` | **Settled**, both balances moved in one transaction | [schedule 0.0.10460165](https://hashscan.io/testnet/schedule/0.0.10460165), [seller approval that created the schedule](https://hashscan.io/testnet/transaction/0x47f5ef71d24a1bb98cc417d39aa968d0f1c9ab632f12e88e1bdd41c603272ae2) |
+| Trade 2: 50,000 par, buyer eligibility revoked by the compliance officer after both approvals | **Failed**, no balance changed, reason `AccountIsBlocked(buyer)` stored on-chain | [schedule 0.0.10460221](https://hashscan.io/testnet/schedule/0.0.10460221), [revocation](https://hashscan.io/testnet/transaction/0x4a80a85584441082f60f6da79222bfa7b9a536794a8de7deba60957ebe0ebf53) |
+
+Reproduce with `npm run settle-demo -- --delay 120` and `npm run settle-demo -- --par 50000 --delay 90 --revoke-buyer` in `ops/`. The first engine deployment (`0.0.10459674`) exposed a timing edge: the network fires a schedule at its expiry second, but the EVM block timestamp can lag it by a fraction, so the engine now schedules `settleAt + 10s` (never earlier than `settleAt`). That trade was settled manually and is kept as a record.
 
 Three eligible lenders hold the tranche (seller 150m par, holder 100m par, buyer 0 par with 10m mock USD). Restriction evidence: a [loan transfer to an unverified account reverted](https://hashscan.io/testnet/transaction/0xd59ce30c7a35ed6ba2bd71a48735dcfaa986c9d649c12e5f6b95550e819b6255) and a mock-USD transfer to it failed with `ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN`. ATS also refused to issue to the desks before they were whitelisted. Reproduce with `npm run negative-test` in `ops/`.
 
@@ -74,6 +83,9 @@ npm run eligibility -- --evm $DESK_BUYER_EVM_ADDRESS   --grant
 npm run eligibility -- --evm $DESK_LENDER3_EVM_ADDRESS --grant
 npm run allocate -- --evm $DESK_SELLER_EVM_ADDRESS  --par 150000000
 npm run allocate -- --evm $DESK_LENDER3_EVM_ADDRESS --par 100000000
+npm run negative-test             # on-chain rejections for the unverified account
+npm run settle-demo -- --delay 120                        # live atomic DvP via HSS schedule
+npm run settle-demo -- --par 50000 --delay 90 --revoke-buyer   # full revert after eligibility revocation
 ```
 
 ## How the ATS SDK is used from a backend
