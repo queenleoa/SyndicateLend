@@ -94,6 +94,26 @@ The SDK ships browser and custodial wallet adapters only. `ops/src/lib/ats.ts` d
 
 Deployed ATS infrastructure used (testnet, compatible with SDK 8.0.0): BusinessLogicResolver `0.0.9212226`, Factory `0.0.9213391`, bond configuration id 2.
 
+## Institutional approvals with Privy (web app)
+
+The web app in `web/` is a Next.js 16 application. Staff sign in with Privy (email or Google). Each institution is provisioned as:
+
+- three Privy users tagged with `institution` and `role` (trader, compliance officer, portfolio manager),
+- a **key quorum** of those users with threshold **2 of 3**,
+- a **policy** owned by the quorum that only allows `eth_signTransaction` to the settlement venue contracts on Hedera testnet with zero value,
+- a **desk wallet** owned by the quorum and governed by the policy.
+
+A desk action (for example approving a settlement instruction) is an **intent** on the desk wallet. A trader or portfolio manager proposes it, and each approver authorises with their own login session: the server exchanges the member's access token for a short-lived user signing key and posts the signature to the intent. When two members have signed, Privy executes the action. The app secret alone cannot move the wallet, and the server never holds a desk key.
+
+```bash
+cd web
+npm run dev                                   # http://localhost:3000, uses ../.env (symlinked)
+npx tsx scripts/provision.mts <id> "<name>" <trader@> <compliance@> <pm@>   # provision an institution
+npx tsx scripts/intent-test.mts <id>          # create a test intent and print it
+```
+
+Dashboard settings that complete the B2B setup (allowlist, MFA, login methods, app clients, webhooks) are listed in [docs/privy-dashboard.md](docs/privy-dashboard.md). Provisioned institutions are recorded in `web/data/org.json`.
+
 ## Settlement design notes
 
 - Each desk approves a hash of the full instruction (tokens, parties, par, cash, dates, RFQ reference). Both hashes must match.
