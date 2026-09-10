@@ -1,0 +1,54 @@
+{
+  "network": "testnet",
+  "operator": {
+    "accountId": "0.0.10457020",
+    "evmAddress": "0x57301e1d8dd11ff234ca28a873bd00eb03d24028"
+  },
+  "mockUsd": {
+    "tokenId": "0.0.10459660",
+    "evmAddress": "0x00000000000000000000000000000000009f9a0c",
+    "decimals": 6,
+    "symbol": "mUSD",
+    "createTx": "0.0.10457020@1789043175.086982593"
+  },
+  "topics": {
+    "rfq": "0.0.10459663",
+    "notices": "0.0.10459666"
+  },
+  "settlementEngine": {
+    "address": "0x36b7067ee318716b01adac233050b7346975bfc1",
+    "deployTx": "0x210e5939b5ea60e4a5a17428704650b6af3ac42cd25050fc4b5d236d40a3daad"
+  },
+  "loanToken": {
+    "name": "Meridian Holdings Term Loan B 2031 - Tranche A",
+    "symbol": "MHTLB-A",
+    "isin": "XSMHTLB20315",
+    "decimals": 0,
+    "units": "250000000",
+    "maturity": 1940544000,
+    "documentRef": "ipfs://synthetic-credit-agreement-hash",
+    "tokenId": "0.0.10459721",
+    "evmAddress": "0x1600f4a4609b9e9c48c432a16732da2634b7b1b7",
+    "createTx": "0xb8f5301f35bb6c64d16225cc938b4cc0bd2ea8e4444e9e343921fd9797e952cc",
+    "configId": "0x0000000000000000000000000000000000000000000000000000000000000002",
+    "factory": "0.0.9213391",
+    "resolver": "0.0.9212226",
+    "startingDate": 1789043520
+  },
+  "institutions": [
+    {
+      "name": "Unverified account",
+      "role": "outsider",
+      "evmAddress": "0x55a12c449c3001c7a7a42041e957e51f5ec30fde",
+      "accountId": "0.0.10459778",
+      "usdKyc": false
+    },
+    {
+      "name": "Meridian Credit Partners",
+      "role": "seller",
+      "evmAddress": "0xe4691b01dfbb6c3022c9c1b82521999bf9c2797e",
+      "accountId": "0.0.10459771",
+      "usdKyc": true
+    }
+  ]
+}
