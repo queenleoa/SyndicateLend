@@ -5,6 +5,27 @@
   "type": "module",
   "description": "Administrative-agent scripts: ATS loan-token issuance, HTS mock-USD, HCS topics, deployments.",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "whoami": "tsx src/whoami.ts",
+    "gen-desks": "tsx src/gen-desks.ts",
+    "deploy:usd": "tsx src/deploy-mock-usd.ts",
+    "topics": "tsx src/create-topics.ts",
+    "issue": "tsx src/issue-loan-token.ts",
+    "onboard": "tsx src/onboard-institution.ts",
+    "eligibility": "tsx src/set-eligibility.ts",
+    "allocate": "tsx src/allocate.ts",
+    "smoke": "tsx src/smoke.ts",
+    "record-engine": "tsx src/record-engine.ts"
+  },
+  "dependencies": {
+    "@hashgraph/asset-tokenization-sdk": "^8.0.0",
+    "@hashgraph/sdk": "^2.81.0",
+    "dotenv": "^16.6.1",
+    "ethers": "^6.17.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.5",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3"
   }
 }
