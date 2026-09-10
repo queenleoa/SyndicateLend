@@ -1,0 +1,53 @@
+# Environment / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.json
+
+# Node / Next.js / TypeScript
+node_modules/
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+.turbo/
+.vercel/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# Foundry / Solidity
+cache/
+out/
+broadcast/
+artifacts/
+typechain-types/
+lib/
+
+# Chainlink CRE
+.cre/
+cre-cache/
+
+# Hedera / local chain state
+.hedera/
+
+# Testing / coverage
+coverage/
+coverage.json
+lcov.info
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
+logs/

@@ -1,728 +1,615 @@
-# SyndicateLend - Hackathon PRD
+# SyndicateLend — Hackathon Product Requirements Document
 
-**Track:** Tokenisation of Anything (Asset Tokenization Studio)
-**Secondary bounties targeted:** Chainlink "Best Confidential Workflow" ($2,000, up to 2 teams at $1,000), Privy "Best B2B Financial Product" ($2,500)
-**Team:** Solo founder
-**Build window:** 5 days, ~68 hours
+**Product:** Private tokenised loan registry and secondary exchange
+
+**Track:** Tokenisation of Anything — Asset Tokenization Studio
+
+**Integrations:** Hedera ATS, Hedera Token Service, Hedera Consensus Service, Hedera Scheduled Transactions, Privy and Chainlink CRE
+
 **Network:** Hedera testnet
 
----
+**Team:** Solo founder
 
-## 1. Problem Statement
-
-> Syndicated loan pieces trade every day, but settling a trade takes weeks because there is no shared infrastructure for owning and transferring a private loan contract.
-
-When a borrower needs more than one bank will lend, a group of banks club together and lend jointly. That is a syndicated loan. It is one of the largest credit markets on earth: the US leveraged segment alone has over $1.4T outstanding, and secondary trading of loan pieces reached a record $1T in 2025 (LSTA).
-
-Unlike a bond or an equity, a loan piece is a private bilateral contract. There is no central securities depository, no register that both counterparties can rely on, and no delivery-versus-payment mechanism. When a fund sells $5M of a term loan to an insurer, the trade is agreed in minutes but settles in weeks. The agent bank has to update its own ledger, both sides exchange paper assignment agreements, KYC has to be re-checked by hand, and cash moves separately from the asset.
-
-The consequences are structural, not cosmetic:
-
-- **Credit and counterparty risk** for the full settlement window. The buyer is exposed to the seller failing, and vice versa, for weeks.
-- **Idle capital.** Cash and collateral sit waiting on settlement instead of being redeployed.
-- **Delayed compensation.** The market runs an elaborate compensation scheme (LSTA delayed compensation rules) purely to price its own slowness. This is dead-weight operational cost.
-- **Interest accrual disputes.** Interest resets, spreads, and day-count conventions are private terms that each side computes separately, then reconciles by email.
-
-**Target Users**
-
-| Segment | Role in the market | Pain today |
-|---------|-------------------|-----------|
-| Credit funds and CLO managers | Most active buyers and sellers of loan pieces | Weeks of settlement risk, manual assignment paperwork, reconciliation of accrual |
-| Agent banks | Keep the register of who owns what, distribute interest | Run a bilateral ledger that nobody else can verify; process every assignment by hand |
-| Insurers and pension managers | Long-term holders, occasional traders | Slow onboarding to each facility, opaque ownership record |
-| Loan operations teams at all of the above | Execute settlement | Chase signatures, re-key data between systems, manage delayed-comp claims |
-
-**Current Solutions**
-
-| Existing player | What it does | Gap |
-|----------------|-------------|-----|
-| Versana (BofA, Citi, JPM backed) | Live data platform, $900B+ across 1,500+ facilities | Solves data transparency only. Agent banks feed it reference data; ownership never moves on it. |
-| ClearPar (IHS Markit / S&P) | Settlement workflow platform | Coordinates documents and messages between parties. Cash and asset still move separately, off-platform. |
-| LoanIQ (Finastra) | Agent bank system of record | Each agent bank runs its own instance. Not a shared register. |
-| Galaxy Digital tokenised CLO (Jan 2026, $75M, Avalanche) | Tokenised a CLO structure | Proves institutional appetite for on-chain credit. Does not tokenise the underlying loan pieces or their secondary market. |
-
-**Why Web3?**
-
-The core problem is that the loan register is a private ledger held by one party (the agent bank) that every other party must trust and reconcile against. A Web2 solution is another database owned by another intermediary, which is exactly what Versana and ClearPar are. Both are valuable and both leave settlement untouched.
-
-A tokenised register on a public ledger changes three things a Web2 system cannot:
-
-1. **Ownership and transfer are the same object.** The register is the token balance. There is no separate step to "update the agent bank ledger" after a trade.
-2. **Delivery and payment can be one atomic unit.** Hedera executes both legs or neither. No settlement window, no counterparty exposure during it, no delayed compensation.
-3. **Compliance is enforced at the point of transfer, not audited after.** ERC-3643 compliance rules run inside the transfer itself. An ineligible assignee cannot receive the piece, so there is nothing to unwind.
+**Build window:** Five days
 
 ---
 
-## 2. Solution Overview
+## 1. Executive Summary
 
-SyndicateLend is a private tokenised loan registry and RFQ-based secondary market for syndicated loan pieces, built on Hedera's Asset Tokenization Studio (ATS).
+When a company needs to borrow more than one bank is willing to provide, several banks lend together under one credit agreement. This is a syndicated loan.
 
-Each loan facility or tranche is issued as an ERC-3643 security token through ATS. A token balance equals par value held (one token equals one dollar of principal). ATS's identity registry and compliance controls become the loan register: only KYC-verified, eligible lenders can hold or receive a piece. This replaces the agent bank's bilateral ledger with a register every participant can verify on HashScan.
+Syndicated loans form one of the world's largest credit markets. The Morningstar LSTA Leveraged Loan Index was approaching **$1.5 trillion** in outstanding loans in 2025. US secondary loan trading reached a record **$971 billion in 2025**, and trailing twelve-month volume passed **$1 trillion in the first quarter of 2026**.
 
-Trading follows real market structure: negotiated bilaterally through a request-for-quote (RFQ) flow, not an order book. Every RFQ, quote, and acceptance is recorded on a Hedera Consensus Service (HCS) topic as an immutable audit trail. When a trade is agreed, a settlement contract executes both legs atomically: the loan token moves from seller to buyer under full ERC-3643 compliance, and the cash leg moves in a KYC-gated HTS stablecoin. Execution is deferred to the agreed settlement date through a Hedera Scheduled Transaction, and gated by each desk's internal approval quorum enforced by Privy.
+Yet a loan interest is not transferred like a listed security. It is a contractual claim governed by a private credit agreement. The administrative agent maintains the lender register, the parties exchange assignment documents, eligibility and consent conditions must be satisfied, and the cash and asset legs are coordinated across separate systems. A trade can be agreed quickly while its legal and operational settlement takes days or weeks.
 
-Interest is where private data meets public settlement. Loan economics (spread, day-count, reset notices) are confidential. The agent bank first commits to its interest reset notice by posting a salted hash (notice plus a random nonce) to an HCS topic, an ordinary public transaction with a consensus timestamp. A Chainlink CRE Confidential Workflow, triggered with only the topic ID and sequence number of that commitment, pulls the actual notice and nonce from the agent bank's endpoint from inside a Trusted Execution Environment (TEE), using `handlerInTee` and a secret fetched with `runtime.getSecret()` so the API key and notice content never touch Workflow DON node memory. Inside the enclave it recomputes the salted hash and checks it against the HCS commitment before computing accrual per holder, so a distribution can only be produced from the notice that was anchored at that timestamp. Only the resulting per-holder distribution crosses back out of the enclave, as a DON-signed report. Because Hedera is not yet a CRE write target, a relayer submits that signed report to `InterestDistributor` via the Hedera SDK; the confidential computation still happens entirely inside the TEE, only the last-mile delivery is off the CRE rails. A Scheduled Transaction then pays every holder pro-rata in the HTS stablecoin on the payment date.
+This delay creates avoidable counterparty exposure, traps capital and generates reconciliation work. The market even uses delayed-compensation rules to allocate interest and cost of carry when settlement misses the expected date.
 
-Privacy is designed in from the start, in three layers with three owners. The hackathon demo runs on the public Hedera testnet because the track requires it and because HashScan makes every claim verifiable. For production, the unchanged codebase deploys to HashSphere, Hashgraph's private permissioned network with the same services, so ownership and settlement are visible only to the participating institutions. Loan terms and accrual computation stay inside Chainlink CRE's TEE and never touch any ledger. Institutional identity and internal trade approval stay inside Privy. See the Privacy Architecture section for the full mapping.
+I am building **SyndicateLend** to address this settlement problem. It is a private, tokenised register and request-for-quote (RFQ) exchange for syndicated loan interests. Hedera Asset Tokenization Studio (ATS) represents eligible ownership, a settlement contract exchanges the loan token and payment atomically, Privy applies institutional approval controls, and Chainlink CRE calculates interest from confidential loan terms.
 
-**Hackathon Track Alignment**
+### Product thesis
 
-The Tokenisation of Anything track asks for "real asset classes and real lifecycle management" built with ATS, and lists a secondary market for ATS assets as extra points because the Studio does not have one today. SyndicateLend hits every extra-points item in the track description:
+> A loan trade should not remain exposed for weeks after the buyer and seller have agreed its terms. If ownership, eligibility and payment are represented on a shared ledger, the trade can settle as one controlled transaction.
 
-| Track extra-points item | SyndicateLend feature |
-|------------------------|----------------------|
-| Secondary market for ATS-issued assets | RFQ marketplace with atomic DvP settlement |
-| Compliance controls in use | KYC grants on both loan token and stablecoin, transfer restrictions via ERC-3643 compliance, freeze on default, pause on facility amendment |
-| Coupon or dividend distributions | Pro-rata interest distribution to all holders |
-| Oracle integration for pricing or NAV | The same CRE workflow fetches the public benchmark rate (e.g. SOFR) it needs for accrual and posts that rate plus the aggregate distribution total to HCS as a public reference feed. Both are already-public numbers, so this costs nothing in confidentiality and gives every facility a running NAV-adjacent mark. |
-| Custom fee schedules | The RFQ HCS topic carries a small fixed HBAR fee per message (`CustomFixedFee`, fee-schedule key held by the venue operator), modelling a venue/matching fee the way a real trading venue would charge one. |
-| Scheduled Transactions for coupon payments or settlement | Used for both trade settlement and interest payment |
-| Contributions back upstream to ATS | Settlement engine and RFQ module designed as ATS-compatible extensions (see Parking Lot) |
+### Hackathon objective
 
-### Key Features (MVP)
+Demonstrate the complete lifecycle of one tokenised term-loan tranche:
 
-Build order is by judging impact. Execution and Success are 40% of the score, so the features that produce a working, demonstrable lifecycle come first.
-
-1. **Facility token issuance via ATS with KYC grants.** Deploy an ERC-3643 loan token through the ATS SDK, register three lender identities, grant KYC, demonstrate a rejected transfer to an unverified account. This is the qualification requirement and the foundation for everything else.
-2. **Atomic DvP settlement via Scheduled Transaction.** A `SettlementEngine` contract moves the loan token and the HTS stablecoin in one execution. The call is scheduled for the settlement date. This is the feature that answers the problem statement and the one judges will remember.
-3. **Privy quorum approval on settlement.** A desk's trader, compliance officer, and PM must reach a 2-of-3 approval before the desk's wallet signs the settlement approval. This is the real B2B workflow and the differentiator from every other DvP demo.
-4. **CRE confidential accrual workflow.** HCS commitment in, `handlerInTee` verifies the notice against that commitment and computes accrual inside a TEE, per-holder distribution out, paid through a Scheduled Transaction. The confidential portion is not a placeholder: the accrual math only runs if the enclave's hash check against the HCS commitment passes. Covers the track's oracle and coupon asks and the Chainlink "Best Confidential Workflow" bounty in one feature.
-5. **RFQ flow with HCS audit trail.** Request, quote, accept, all as HCS messages on a topic with a `CustomFixedFee` venue charge, rendered in a trading blotter.
-
-### Non-Goals (v1)
-
-- **No order book or continuous matching.** Loans trade by negotiation. An order book would be less realistic and more work.
-- **No primary syndication.** The facility is assumed to exist. SyndicateLend tokenises an existing register; it does not run the syndication process.
-- **No real fiat or real stablecoin.** The cash leg is a permissioned mock-USD HTS token on testnet.
-- **No real KYC provider.** Identity verification is simulated; the identity registry is populated by an admin action. The integration point is real, the provider is not.
-- **No deemed-consent window.** LSTA assignee-eligibility rules include a time-bound borrower consent process. This is v2 design, not hackathon scope.
-- **No multi-currency, no revolvers with drawdown mechanics, no amendments or waivers.** Term loan pieces only.
-- **No mainnet deployment.** Testnet only.
-- **No production key management.** Privy embedded wallets on testnet; no HSM or Fireblocks integration.
+1. issue and allocate the loan token;
+2. onboard eligible lenders;
+3. negotiate a trade through an RFQ;
+4. collect each institution's internal approvals;
+5. settle the asset and payment together;
+6. calculate and distribute interest; and
+7. preserve an auditable record of every material event.
 
 ---
 
-## 3. Hedera Integration Architecture
+## 2. Problem and Market Context
 
-### Network Services Used
+### 2.1 How the market works today
 
-| Service | Purpose | Why This Service? |
-|---------|---------|-------------------|
-| **Asset Tokenization Studio (ERC-3643 via ATS SDK)** | Issue one security token per facility or tranche. Identity registry plus compliance module act as the loan register. Control list, freeze, and pause map directly to loan lifecycle events. | ATS ships audited ERC-1400 and ERC-3643 contracts with KYC, control lists, lock, pause, and snapshot already built. Building the register from scratch would consume the whole hackathon and score worse. Track requires ATS. |
-| **Smart Contracts (EVM)** | `SettlementEngine` executes both legs of a trade in one call. `InterestDistributor` receives the CRE report and prepares the payment. Both verified on HashScan. | The ERC-3643 token leg is an EVM call, so the atomic unit that contains both legs must be an EVM call. The HTS system contract lets that call move the stablecoin natively. |
-| **Hedera Token Service (HTS)** | Permissioned mock-USD stablecoin with KYC key, freeze key, and pause key. KYC is granted to an account only after the same identity is verified in the ATS identity registry. | Native HTS compliance keys give the cash leg the same eligibility controls as the asset leg without a second compliance contract. Fixed, predictable fees for the highest-volume operation. |
-| **Scheduled Transactions (HSS)** | Two uses. (a) `SettlementEngine.settle(tradeId)` is scheduled for the agreed settlement date and executes without a bot. (b) Interest distribution is a scheduled HTS transfer from the paying agent to all holders, executed on the payment date once the paying agent signs. | Hedera is the only major network with native deferred execution and on-network signature collection. The settlement instruction is visible on HashScan before it executes, which is exactly what a loan operations team needs. |
-| **Hedera Consensus Service (HCS)** | One topic per facility for RFQ messages, quotes, acceptances, and trade confirmations, with a small `CustomFixedFee` per message modelling a venue fee. A second topic for agent-bank notice commitments, which the CRE workflow reads and verifies against. A third channel (or the notice topic, reused) carries the public benchmark rate and aggregate distribution as a NAV-adjacent reference feed. | Ordered, timestamped, tamper-proof. Replaces the email and Bloomberg chat trail that loan desks keep for audit today. Cheap enough to log every negotiation step, and the custom fee schedule shows HCS doing venue economics, not just logging. |
-| **Mirror Node** | Portfolio view, trade history, holder list for interest distribution, schedule status polling. | Read-only queries at no cost; standard for any front end. |
-
-### Ecosystem Integrations
-
-| Partner/Platform | Integration Type | Value Added |
-|-----------------|------------------|-------------|
-| **Privy** | Each lending desk is a Privy organization wallet; a quorum policy (trader, compliance, PM) gates the `approve` call, so settlement is a functional B2B approval workflow, not just an embedded wallet with login | Institutional users never see a seed phrase. A desk's wallet signs settlement approval only after 2-of-3 internal sign-off. This is the access-control layer missing from every other tokenised-settlement demo, and it's the core of the Privy "Best B2B Financial Product" bounty: an organization wallet, a quorum policy, and a real approval operation (trade settlement) gating it. Every Privy user is a new Hedera account. |
-| **Chainlink CRE (Confidential Compute)** | `handlerInTee` workflow pulls the interest notice inside a TEE, verifies it against a prior HCS commitment, computes accrual, and crosses back to the DON for a signed report; a relayer writes the distribution to `InterestDistributor` since Hedera is not a native CRE write target | Loan economics stay private while the payment is public and verifiable, and the HCS commitment proves the notice used in the enclave is the one anchored to the audit trail. Turns a manual reconciliation process into an automated, provable one. |
-| **HashPack** | WalletConnect for self-custody participants and read-only observer access for auditors | Hedera-native users and auditors can connect without Privy. Shows the register is open to any Hedera wallet, not locked to one provider. |
-| **HashScan** | Contract verification, schedule inspection, transaction receipts linked from the UI | Qualification requirement. Every settlement in the demo links to its HashScan record. |
-| **ATS upstream (hashgraph/asset-tokenization-studio)** | `SettlementEngine` and the RFQ module packaged as an ATS extension; issue opened and PR drafted during the hackathon | Track lists upstream contribution as extra points. Gives every future ATS issuer a secondary market. |
-| **ATS partner network (ioBuilders, Dfns, Fireblocks, AWS KMS)** | Production key management and KYC providers already integrated with ATS, used unchanged | Path from Privy testnet wallets to institutional custody without re-architecting. |
-
-### Ecosystem Integration Potential (post-hackathon)
-
-The Innovation rubric rewards solutions that can plug into existing ecosystem platforms to unlock further capability. Loan tokens on ATS make these integrations possible without new primitives:
-
-| Platform | Integration | Capability unlocked |
-|----------|------------|--------------------|
-| **USDC on Hedera** | Replace mock-USD as the cash leg | Real-money settlement with the same HTS controls |
-| **Bonzo Finance (Hedera lending)** | Loan tokens accepted as collateral | Repo-style financing against loan pieces, the track's first listed idea |
-| **Hedera Guardian** | Attach facility documents and ESG covenants as verifiable credentials | Sustainability-linked loan covenants tracked on-chain |
-| **Chainlink CCIP** | Bridge loan tokens to other chains under compliance | Galaxy-style CLO structures on other chains can hold Hedera-registered loan pieces |
-| **Versana / ClearPar** | Reference data in, settlement instructions in | Incumbent workflow feeds the register; ownership moves on Hedera |
-
-### Architecture Diagram
-
-```mermaid
-flowchart TB
-    subgraph Client["Client - Next.js Front End"]
-        UI["Blotter, Portfolio, RFQ, Approvals, Register"]
-    end
-
-    subgraph Eco["Off-Chain / Ecosystem"]
-        Privy["Privy: embedded wallets + 2-of-3 quorum policy"]
-        HashPack["HashPack: self-custody + observer connect"]
-        CRE["Chainlink CRE: handlerInTee confidential workflow, TEE"]
-        Relayer["Relayer: delivers DON-signed report"]
-        AgentBank["Agent Bank: notice source"]
-    end
-
-    subgraph Hedera["Hedera Testnet"]
-        HCS["HCS Topics: RFQ, notice commitment, NAV feed"]
-        ATS["ATS Loan Token, ERC-3643: identity registry + compliance"]
-        SE["SettlementEngine"]
-        IntDist["InterestDistributor"]
-        HTS["HTS Stablecoin: KYC, freeze, pause"]
-        Sched["Scheduled Transactions"]
-        Mirror["Mirror Node"]
-    end
-
-    UI --> Privy
-    UI --> HCS
-    UI --> Mirror
-    HashPack --> UI
-
-    Privy -->|signs approve| SE
-    SE --> Sched
-    SE --> ATS
-    SE --> HTS
-
-    AgentBank -->|1 posts commitment| HCS
-    HCS -->|2 relayer reads commitment| Relayer
-    Relayer -->|3 fires trigger: topic and sequence| CRE
-    AgentBank -->|4 notice, inside enclave| CRE
-    Mirror -->|5 commitment hash, holder register, benchmark rate| CRE
-    CRE -->|6 signed report| Relayer
-    Relayer -->|7 distribution| IntDist
-    IntDist --> Sched
-    Sched --> HTS
-```
-
-*Numbered edges trace the interest distribution path; unlabelled edges are the settlement and register path, detailed in the sequence diagrams below.*
-
-### Settlement Flow (the demo's centrepiece)
-
-```mermaid
-sequenceDiagram
-    participant Seller
-    participant Buyer
-    participant HCS as HCS Topic
-    participant Privy
-    participant SE as SettlementEngine
-    participant HSS as Schedule Service
-    participant ATS as ATS Loan Token
-    participant HTS as HTS Stablecoin
-
-    Seller->>HCS: 1. Post RFQ (facility, par, side)
-    Buyer->>HCS: 2. Post quote (price percent of par)
-    Seller->>HCS: Accept
-    Note over HCS: All three timestamped at consensus
-
-    Seller->>SE: 3. Create trade (parties, amount, T+1)
-    Seller->>ATS: 4. Grant ERC-3643 allowance
-    Buyer->>HTS: 4. Grant HTS allowance
-
-    Seller->>Privy: 5. approve(tradeId)
-    Privy->>Privy: 2-of-3 quorum (trader, compliance, PM)
-    Privy->>SE: signed approve
-    Buyer->>Privy: 5. approve(tradeId)
-    Privy->>SE: signed approve
-
-    SE->>HSS: 6. scheduleCall settle(tradeId) at T+1
-    HSS->>SE: 7. executes at settlement date
-    SE->>ATS: transferFrom seller to buyer
-    SE->>HTS: transfer buyer to seller
-    Note over SE: Both legs succeed or both revert
-
-    SE->>HCS: 8. Post trade confirmation
-    HCS-->>Buyer: Blotter updates via Mirror Node
-    HCS-->>Seller: Blotter updates via Mirror Node
-```
-
-1. Seller posts an RFQ on the facility's HCS topic: facility, par amount, side. The topic's custom fee schedule collects a small HBAR venue fee on the message.
-2. Buyer responds with a quote (price as percentage of par). Seller accepts. All three messages land on HCS with consensus timestamps.
-3. Front end creates the trade in `SettlementEngine` with both parties, amounts, and settlement date T+1.
-4. Seller grants the engine an ERC-3643 allowance for the loan tokens. Buyer grants an HTS allowance for the stablecoin. Both are ordinary approvals from each party's Privy wallet.
-5. Each desk calls `approve(tradeId)`. Privy's policy requires 2-of-3 internal approvals (trader, compliance, PM) before the desk wallet signs this call.
-6. The engine, on receiving the second approval, schedules `settle(tradeId)` for the settlement date. Preferred path: the contract calls the Hedera Schedule Service system contract (`scheduleCall`, HIP-1215) so the trade schedules its own settlement. Fallback: the backend creates the schedule with the SDK.
-7. At settlement time Hedera executes the scheduled call. `settle` moves the loan token via `transferFrom` (ERC-3643 compliance runs here and reverts if the buyer is no longer eligible) and moves the stablecoin via the HTS system contract. One execution, both legs or neither.
-8. The engine posts a trade confirmation to HCS. The blotter updates from the mirror node. HashScan link shown.
-
-A note on design accuracy: a Hedera Scheduled Transaction wraps exactly one transaction body, and an atomic batch (HIP-551) cannot itself be scheduled. Atomicity therefore lives inside the `settle` call, and the Scheduled Transaction provides deferred execution and on-chain visibility of the pending settlement. See Design Decisions for the alternative that was considered.
-
-### Interest Distribution Flow (Chainlink CRE Confidential Workflow)
-
-The accrual computation is designed so that what went into it is provably the notice anchored to the audit trail at a specific consensus timestamp, without ever putting the notice itself on any ledger.
-
-```mermaid
-sequenceDiagram
-    participant Bank as Agent Bank
-    participant HCS as HCS Notice Topic
-    participant Relayer
-    participant TEE as CRE Enclave, handlerInTee
-    participant Mirror as Mirror Node
-    participant DON as Workflow DON
-    participant IntDist as InterestDistributor
-    participant HSS as Scheduled Transaction
-    participant Holders
-
-    Bank->>Bank: Generate nonce, compute hash of notice and nonce
-    Bank->>HCS: 1. Post commitment hash (public, cheap)
-    Note over HCS: Consensus timestamp anchors the commitment
-
-    Relayer->>TEE: 2. Fire HTTP trigger (topic ID, sequence number only)
-    TEE->>Bank: 3. Fetch notice and nonce, secret-gated HTTP, inside enclave
-    TEE->>Mirror: 4. Read committed hash at topic and sequence
-    TEE->>TEE: Recompute hash, compare to commitment
-    Note over TEE: Abort on mismatch, no distribution without a match
-
-    TEE->>Mirror: Fetch holder register
-    TEE->>TEE: 5. Compute per-holder accrual, spread and day-count stay in enclave
-    TEE->>Mirror: 6. Fetch public benchmark rate for NAV feed
-    TEE->>DON: 7. usingTheDons, cross only distribution and rate out
-    DON->>DON: Verify enclave attestation, sign report
-
-    DON->>Relayer: Signed report
-    Relayer->>IntDist: 8. Submit report (Hedera is not a native CRE write target)
-    Relayer->>HCS: Post benchmark rate and aggregate distribution (NAV feed)
-    IntDist->>HSS: 9. Schedule pro-rata HTS transfer
-    HSS->>Holders: Paying agent signs, holders paid
-```
-
-1. The agent bank generates a random 32-byte nonce and computes `hash(notice || nonce)`. It posts that hash, plus the facility ID and reset date, as a plain HCS message to the agent-bank notice topic. This is a public, cheap transaction; the notice content is not in it. HashScan shows the commitment's consensus timestamp and sequence number immediately.
-2. A relayer fires the CRE workflow's HTTP trigger with only the topic ID and sequence number of that commitment as the payload, not the notice itself.
-3. The workflow's `handlerInTee` handler runs inside a Nitro TEE. It fetches an API key with `runtime.getSecret()`, decrypted only inside the enclave, and uses it to pull the actual notice and nonce from the agent bank's endpoint over an HTTP request made from inside the enclave.
-4. Still inside the enclave, it reads the mirror node for the HCS message at that topic and sequence number, recomputes `hash(notice || nonce)`, and compares it to the committed hash. If they don't match, the workflow aborts, so a distribution can never be produced from a notice that wasn't the one anchored to the audit trail.
-5. Only after the check passes does the enclave compute accrual per holder from the loan's spread, day-count convention, and holder register. The spread and day-count never leave the enclave.
-6. Still inside the enclave, the workflow also fetches the public benchmark rate it needs for the floating-rate calculation (e.g. SOFR, already public data with no confidentiality requirement). This becomes the oracle/NAV feed in step 8, at no extra cost since the workflow already has to fetch it to compute accrual.
-7. The workflow calls `runtime.usingTheDons()` to cross back to the Workflow DON with only the per-holder distribution and the public benchmark rate (not the notice, not the spread), which the DON signs as a report after verifying the enclave's attestation.
-8. Because Hedera does not yet appear as a CRE write target, a relayer takes that signed report and submits it to `InterestDistributor` on Hedera via the Hedera SDK, rather than CRE writing onchain natively. The report and its DON signatures are what the contract checks, not the relayer's say-so. The relayer also posts the benchmark rate and the aggregate distribution total to HCS as a public reference feed.
-9. `InterestDistributor` schedules an HTS transfer to every holder, pro-rata, executed on the payment date once the paying agent signs. The blotter shows the HCS commitment, the workflow's execution evidence (simulation log or deployment record), the reference feed, and the payment schedule as one linked trail.
-
-This is the strong version of an HCS audit trail: it is not just a log that a notice was issued, it is a commitment that the enclave is cryptographically bound to before it is allowed to compute anything. An auditor with no special access can pull the HCS message and the workflow's public source, and confirm the two are the same computation.
-
-### Privacy Architecture
-
-Syndicated loans are private contracts between private parties. Who holds a piece, at what price it traded, and on what terms interest accrues are all confidential. Institutions will not put any of that on a public ledger. SyndicateLend is designed so that the hackathon demo runs on the public testnet, as the track requires, while the production deployment keeps every sensitive element private. Privacy is layered, and each layer has an owner.
+An administrative agent acts as the operational centre of a syndicated facility. It maintains the lender register, circulates notices, processes assignments and distributes principal and interest. Trading is bilateral: a buyer and seller agree the economics, then complete the documentation and operational steps required by the credit agreement.
 
 ```mermaid
 flowchart LR
-    subgraph L1["Ownership and Settlement"]
-        HS["HashSphere in production, public testnet in the hackathon demo"]
-    end
+    A[Trade agreed] --> B[Eligibility and consent checks]
+    B --> C[Assignment documents]
+    C --> D[Agent and counterparty reconciliation]
+    D --> E[Cash transfer]
+    E --> F[Register updated]
+    F --> G[Trade settled]
 
-    subgraph L2["Loan Economics and Computation"]
-        TEEBox["Chainlink CRE TEE: spread, day-count, reset notices, per-holder accrual"]
-    end
-
-    subgraph L3["Identity and Internal Approval"]
-        PrivyBox["Privy embedded wallets and quorum policies: individuals, roles, approvals"]
-    end
-
-    Aud["Regulators and Auditors: observer nodes, read-only accounts"]
-
-    L1 --> Aud
-    L2 -->|only the signed report crosses out| L1
-    L3 -->|only the signature crosses out| L1
+    classDef delay fill:#fff3cd,stroke:#9a6700,color:#3d2c00
+    class B,C,D,E,F delay
 ```
 
-| Layer | What is private | Provided by | Hackathon | Production |
-|-------|----------------|-------------|-----------|------------|
-| **Ownership and settlement** | Who holds which facility, balances, trade prices, settlement flows | **HashSphere**, Hashgraph's private permissioned network built on the same Hiero codebase and services as the public network | Public testnet (track requirement, and it makes the demo verifiable on HashScan) | HashSphere, operated by a consortium of participating institutions, with the same ATS contracts, HTS, HCS, and Scheduled Transactions deployed unchanged |
-| **Loan economics and computation** | Spread, day-count, reset notices, per-holder accrual | **Chainlink CRE Confidential Workflow (TEE)**, bound to an HCS commitment so the enclave only computes from the anchored notice | Live in the demo | Same, with the TEE report written to HashSphere |
-| **Identity and internal approval** | Which individuals sit behind a desk, their roles, who approved what internally | **Privy** embedded wallets and quorum policies | Live in the demo | Same, with Privy's key management or an institutional custodian through ATS partner integrations |
-| **Negotiation** | RFQ content, quotes | HCS topic with encrypted message payloads; topic submit key restricted to participants | Plain-text HCS messages for demo legibility, encryption flagged in the UI | Encrypted payloads on a private HashSphere topic |
+These steps are not unnecessary in themselves. The inefficiency comes from performing them across fragmented records, documents and payment rails without one shared settlement state.
 
-Why this split matters:
+### 2.2 Core problems
 
-- **Nothing in the application changes between testnet and HashSphere.** HashSphere runs the same services, so the ATS contracts, the settlement engine, the schedule calls, and the HCS topics deploy as they are. The hackathon build is the production build; only the network endpoint and the participant set change.
-- **Privacy is separated by concern.** The ledger keeps ownership private from the world. The TEE keeps terms private from the ledger operator and from other lenders. Privy keeps people and internal governance private from counterparties. No single layer is asked to do all three.
-- **Auditability is retained.** Regulators and auditors join HashSphere as observer nodes or read-only accounts, the same role HashPack observers play in the demo. Privacy from the public is not privacy from supervision.
-- **Interoperability is not lost.** HashSphere is designed to interoperate with the public Hedera network, so a loan token can later be bridged to public settlement or to other chains under compliance if the participants choose.
+| Problem | Operational effect | Economic effect |
+|---|---|---|
+| Fragmented ownership records | Parties reconcile their positions against the agent's register | Disputes and manual exceptions |
+| Separate asset and cash movements | One leg may be ready before the other | Counterparty and principal risk during settlement |
+| Repeated eligibility checks | KYC, transfer restrictions and consents are reviewed for each assignment | Longer settlement and higher operating cost |
+| Private interest terms | Each party calculates and reconciles accrual independently | Payment breaks and delayed-compensation claims |
+| Scattered audit evidence | Messages, approvals, documents and receipts live in different systems | Slow investigation and weak real-time oversight |
 
-This is the answer to the first question every bank asks about a public-chain design, and it should appear on the architecture slide in the pitch.
+The problem is therefore not that the market lacks software. ClearPar coordinates loan settlement workflows, Loan IQ supports agent-bank operations, and Versana distributes agent-sourced loan data. These systems improve parts of the process, but ownership and payment still do not settle as one transaction on a common register.
 
----
+### 2.3 Evidence of demand
 
-## 4. Hedera Network Impact
+- The LSTA reported **$971 billion** of secondary loan trading in 2025, a record and 18% above 2024.
+- LSTA's April 2025 settlement review showed mean and median par settlement times still in the mid-to-high teens in business days, against a ten-year average of 20 business days.
+- Versana reported more than 1,500 facilities and approximately $900 billion of commitments on its agent-connected data platform, showing institutional demand for shared loan infrastructure.
+- Galaxy's $75 million tokenised CLO closing in January 2026 shows growing institutional interest in on-chain credit, although it tokenises CLO securities rather than the underlying syndicated loan assignments addressed here.
 
-Every participant, every facility, every trade, and every interest period creates Hedera entities and transactions by design. The model below uses market-wide figures so judges can see what full adoption means, and pilot figures so the near-term numbers are credible.
+### 2.4 Target users
 
-### The Unit Economics of One Facility
-
-A typical US leveraged loan facility has 100 to 200 lenders of record (LSTA). Each lender is an institution with several authorised signers. Interest resets monthly or quarterly. Pieces of the facility trade many times a year.
-
-| Event | Hedera entities and transactions created |
-|-------|------------------------------------------|
-| Facility onboarded | 1 ATS security token, 1 identity registry entry per lender, 2 HCS topics |
-| Lender onboarded | 1 desk account, 3 signer accounts (Privy), 1 stablecoin association, 1 KYC grant on each token |
-| Trade | 3 to 5 HCS messages, 2 allowances, 2 approvals, 1 schedule entity, 1 scheduled execution, 1 confirmation message: about 10 transactions |
-| Interest period | 1 CRE report write, 1 snapshot, 1 schedule entity, 1 transfer to N holders (batched in groups of 10), 1 HCS notice: 20 to 40 transactions per facility per period |
-| Observer or auditor | 1 HashPack account connect |
-
-### Account Creation
-
-| Stage | Institutions | Facilities | New Hedera accounts |
-|-------|-------------|------------|---------------------|
-| Hackathon demo and outreach | 5 (simulated) plus judges, mentors, and community observers | 2 | 30 to 60 |
-| Year 1 shadow-register pilots | 30 to 50 | 50 | 150 to 300 |
-| Year 3, 10% of US facilities | 500 | 150 | 2,000 to 3,000 |
-| Full US market | 2,000 plus institutional lenders (LSTA membership and CLO manager count) | 1,500 (Versana's coverage) | 8,000 to 12,000 |
-
-Every one of these is an account that transacts, not an airdrop recipient. Institutional accounts are the audience Hedera's council was built to attract.
-
-### Active Accounts
-
-| Stage | Monthly active accounts | Driver |
-|-------|------------------------|--------|
-| Demo | 20 to 30 | Every demo run touches 2 desks, 6 signers, the paying agent, the operator |
-| Year 1 | 100 to 200 | Weekly trading desks plus monthly interest events touching every holder |
-| Year 3 | 1,500 to 2,500 | Interest resets alone activate every holder of every facility every month |
-| Full market | 6,000 to 10,000 | Same |
-
-Interest distribution is the flywheel. A holder who never trades is still an active account every reset date, because the scheduled payment lands in their wallet.
-
-### Transactions Per Second (TPS)
-
-| Stage | Trades/day | Facilities | Interest tx/month | Daily transactions | Average TPS |
-|-------|-----------|------------|------------------|-------------------|-------------|
-| Demo | 5 to 10 | 2 | 60 | 50 to 100 | negligible |
-| Year 1 | 50 | 50 | 1,500 | 500 to 700 | 0.01 |
-| Year 3 | 400 | 150 | 6,000 | 4,000 to 5,000 | 0.05 |
-| Full US market (300k to 400k trades/yr) | 1,400 | 1,500 | 60,000 | 15,000 to 20,000 | 0.2 sustained, 5 to 10 at reset-date peaks |
-
-Sustained TPS is modest by Hedera's capacity. Two things make it significant anyway:
-
-- **Value per transaction.** Average loan trade is $2M to $5M par. Full-market adoption is $1T per year settling on Hedera, more notional than any existing Hedera application.
-- **Reset-date peaks.** Interest resets cluster on month-end and quarter-end. On those days every facility pays every holder in the same window, which is exactly the burst load Scheduled Transactions and HTS batching are designed for.
-
-### Audience Exposure
-
-- **A new audience for every public chain.** Loan operations teams, agent banks, credit funds, and CLO managers do not use any blockchain today. SyndicateLend is built in their language (RFQ, par, assignee eligibility, delayed comp) rather than DeFi's.
-- **The industry body as a channel.** The LSTA (Loan Syndications and Trading Association) sets the rules the market runs on and has an active technology and innovation working group. A working ATS demo is a concrete artefact to bring to that group, and a case study for Hedera's enterprise marketing.
-- **Council-member alignment.** Hedera's governing council includes global banks and financial infrastructure firms. Syndicated lending is a core business line for several of them.
-- **ATS ecosystem growth.** A secondary market makes ATS more attractive to every future issuer, not only loan issuers. Bonds and equities issued through ATS get the same settlement engine.
-- **Target market size:** $1.4T outstanding US leveraged loans, $1T annual secondary trading volume, roughly 300k to 400k trade tickets per year. Global syndicated loan issuance exceeds $5T per year (LSTA, PitchBook LCD, LSEG; confirm exact figures before the pitch).
+| User | Job to be done | Current pain |
+|---|---|---|
+| Credit fund or CLO trading desk | Buy and sell loan interests | Uncertain settlement date and trapped liquidity |
+| Loan operations team | Complete assignments and reconcile cash | Manual follow-up and exception management |
+| Administrative agent | Maintain the authoritative lender register | Re-keying, consent checks and fragmented instructions |
+| Compliance officer | Approve eligible counterparties and transfers | Controls sit outside the transfer itself |
+| Insurer or pension investor | Hold and occasionally trade loans | Repeated onboarding and limited position visibility |
+| Auditor or regulator | Reconstruct ownership and transaction history | Evidence is distributed across several systems |
 
 ---
 
-## 5. Innovation & Differentiation
+## 3. Product Definition
 
-### Ecosystem Gap
+### 3.1 Proposed solution
 
-Hedera has ATS for issuance and lifecycle, but no secondary market for ATS-issued assets. The track description says this explicitly. SyndicateLend is the first negotiated secondary market on ATS with compliance enforced inside settlement, and the first tokenisation of syndicated loan pieces on Hedera. Nothing in the Hedera ecosystem represents a private credit contract as a compliant, transferable, interest-bearing token with atomic settlement.
+SyndicateLend provides a shared register and an RFQ-based secondary market for a tokenised loan tranche.
 
-### Cross-Chain Comparison
+Each ATS token represents a defined amount of principal in one tranche. For the demonstration, one token represents one US dollar of par value. The token is not intended to replace the credit agreement by itself; the legal documents must recognise the digital register and define what the token represents. The first production pilot would therefore run as a shadow register before any legally binding migration.
 
-No project on any chain combines all four of: a compliant token register for syndicated loan pieces, a negotiated secondary market, atomic delivery-versus-payment, and confidential computation of private loan economics. Each existing project has one or two.
+Only verified institutions may hold or receive the token. Once a trade is agreed and approved, the `SettlementEngine` transfers the loan token from seller to buyer and the permissioned mock-USD token from buyer to seller in one contract call. If either leg or any compliance check fails, the entire transaction reverts.
 
-| Project | Chain | Register | Secondary market | Atomic DvP | Private terms | What SyndicateLend adds |
-|---------|-------|----------|-----------------|-----------|---------------|------------------------|
-| Galaxy Digital tokenised CLO (Jan 2026) | Avalanche | CLO notes only | No | No | No | Tokenises the underlying loan pieces and their trading, not a wrapper around a pool |
-| JPMorgan Kinexys tokenised collateral and intraday repo | Private (Onyx) | Yes, permissioned | No | Yes | Bank-internal | Public network, multi-institution, any lender can join through KYC rather than through JPM |
-| Broadridge DLR (repo, $1T+ monthly) | Private (DAML) | Yes | No | Yes | Private ledger | Same DvP guarantee on a public ledger where the register is verifiable by all parties, not the operator |
-| HQLAx, Goldman DAP | Private | Yes | No | Yes | Private ledger | Same as above; also targets loans, which none of these do |
-| CRE-triggered DvP escrow demos | Various EVM | Generic ERC-20 | No | Yes | No; CRE used as webhook | ERC-3643 compliance inside the transfer; CRE used for confidential accrual computation |
-| Maple, Centrifuge, Goldfinch | Ethereum, others | Pool shares | Limited | No | No | Tokenises the existing $1.4T bank-syndicated market rather than originating crypto-native loans |
-| Versana, ClearPar | None | Data only | No | No | Yes, off-chain | Ownership moves on SyndicateLend; it does not on either of them |
+### 3.2 Value proposition
 
-The institutional projects (Kinexys, DLR, HQLAx, DAP) prove that the mechanism works and that banks want it. They are all closed, single-operator ledgers. The public-chain projects prove that tokenised credit finds holders. None of them touch the syndicated loan secondary market, which is larger than the repo segments most of them serve and slower to settle by an order of magnitude.
+SyndicateLend is designed to reduce the interval between trade agreement and settlement from weeks to a configurable T+1 or T+0 process, while retaining the controls expected in institutional credit markets.
 
-### Novel Hedera Usage
+It does this by making four elements part of the same workflow:
 
-- **A trade that schedules its own settlement.** `SettlementEngine` calls the Schedule Service system contract from inside the EVM (HIP-1215) to schedule its own `settle` call at T+1. No bot, no cron job, and the pending settlement is visible on HashScan before it executes. This is a non-obvious use of Scheduled Transactions.
-- **Two compliance systems kept in lockstep.** ERC-3643 identity registry for the asset leg and HTS KYC key for the cash leg, granted together. An account that loses eligibility is frozen on both sides at once.
-- **HCS as a commitment, not just a log.** The agent-bank notice topic doesn't carry the notice itself; it carries a salted hash committing to it. The CRE `handlerInTee` workflow pulls the real notice separately, inside its enclave, and refuses to compute accrual unless the hash matches the committed one. The commitment is public and timestamped; the notice and the computation over it never are.
-- **ATS lifecycle controls mapped to loan events.** Freeze on borrower default, pause on facility amendment, snapshot at interest record date, control list as assignee eligibility. These are ATS features designed for bonds and equities, applied to a new asset class.
+- **ownership:** the ATS token balance records the digital position;
+- **eligibility:** KYC and transfer rules are checked when ownership moves;
+- **payment:** the asset and cash legs execute atomically; and
+- **evidence:** RFQs, approvals and settlement receipts form a linked audit trail.
 
----
+### 3.3 Why a shared ledger is appropriate
 
-## 6. Feasibility & Business Model
+A conventional shared database could improve coordination, but its operator would still control the definitive record and cash would remain on a separate rail. Here, the ledger is useful for a narrower reason: both the asset and payment can be authorised, checked and transferred within one verifiable execution.
 
-### Technical Feasibility
+Hedera is suited to the prototype because it provides:
 
-- **Hedera Services Required:** ATS SDK and contracts, Smart Contracts (EVM) with HTS and HSS system contracts, HTS, Scheduled Transactions, HCS, Mirror Node.
-- **Team Capabilities:** Solo founder. Solidity (Uniswap v4 hooks; TrueLend, 1st place UHI7, in external audit; TruePerp for UHI10). Move on Sui (Fullmetal derivatives MVP). TypeScript and Next.js. Four years building institutional OTC derivatives infrastructure, which is the domain adjacent to loan trading. Four hackathon wins in the past year including 1st place Arc track at ETHGlobal HackMoney.
-- **Technical Risks and Mitigation:**
+- ATS contracts and tooling for compliant security-token issuance;
+- EVM smart contracts for the atomic settlement instruction;
+- native HTS controls for the mock cash token;
+- HCS timestamps and ordering for the audit trail; and
+- Scheduled Transactions for deferred execution and signature collection.
 
-| Risk | Likelihood | Mitigation |
-|------|-----------|------------|
-| Privy cannot sign Hedera native transactions (ScheduleSign, HTS allowance) | Medium | Day 1 spike. Hedera accounts can be ECDSA-keyed; Privy raw signing over the transaction body hash should work. Fallback: Privy signs only EVM calls via JSON-RPC relay (Hashio), and all native operations (allowances, schedule signing) are routed through EVM system contracts or the venue operator account. |
-| Chainlink CRE has no Hedera testnet write target (confirmed: Hedera is absent from CRE's supported-networks list) | High, but fully scoped | Design decision, not a fallback: the workflow runs on CRE, produces a DON-signed report, and a thin relayer posts that report to `InterestDistributor` via the Hedera SDK. The confidential computation and the attestation still happen entirely in CRE's TEE; only report delivery is off the CRE rails. State this honestly in the demo. |
-| Confidential Workflows is private beta (invite-only via Chainlink account team) | Medium | Request access on day 1, but don't block on approval: `cre workflow simulate` runs `handlerInTee` workflows locally without enrollment (CLI v1.29+, TS SDK v1.18+). Demo the simulation with logs/output as evidence if the invite doesn't land in time; the bounty explicitly accepts simulation evidence. |
-| A committed notice has low entropy (few plausible spread/SOFR values), so the HCS hash could be brute-forced without a nonce | Low if designed correctly | Always hash `notice || random 32-byte nonce`, never the notice alone. The nonce is generated by the agent bank and only ever leaves its systems inside the enclave-fetched payload. |
-| HIP-1215 `scheduleCall` from within a contract behaves unexpectedly on testnet | Medium | Fallback: backend creates the `ScheduleCreateTransaction` wrapping `ContractExecuteTransaction` with the SDK. Same user-visible behaviour. |
-| ATS ERC-3643 mode requires deploying a separate compliance and identity registry contract | High (this is how ATS works) | Use ATS's own identity registry and compliance contracts from the repo. Budget half a day. Reuse the ATS testnet deployment addresses where the SDK supports them. |
-| HTS transfer to many holders in one scheduled transaction hits the per-transaction transfer limit | Low for demo (3 to 5 holders) | For larger holder counts, batch into multiple scheduled transfers per period. Note in roadmap. |
-| Solo builder runs out of hours | Low, given the time available | All MVP features are P0; none are scoped as optional. Build order still matters for sequencing (a demo exists from day 2 regardless of what's left), but nothing on the list is planned to be dropped. If an unexpected blocker eats a day, the CRE relayer path and the `scheduleCall` SDK fallback (already the primary design, not emergency fallbacks) absorb the risk without cutting a feature. |
+### 3.4 Product principles
 
-### Business Model (Lean Canvas)
-
-| Element | Description |
-|---------|-------------|
-| **Problem** | 1. Loan trades take weeks to settle, exposing both sides to credit risk. 2. The register is a private ledger nobody else can verify. 3. Interest accrual on private terms is reconciled by hand. |
-| **Solution** | 1. Atomic DvP settlement on the agreed date. 2. ATS ERC-3643 token as a shared, compliant register. 3. Confidential accrual computation with automated distribution. |
-| **Key Metrics** | Par value on register, par value settled per month, median settlement time (target T+1 vs T+20 today), number of facilities, number of active desks, delayed-compensation claims avoided. |
-| **Unique Value Prop** | Settle a loan trade in one day instead of three weeks, with compliance enforced inside the transfer. |
-| **Unfair Advantage** | Founder has four years of institutional OTC infrastructure experience and knows how desks actually approve trades. First mover on ATS secondary markets. Design matches real market structure (RFQ, quorum approval, private terms) rather than a DeFi template. |
-| **Channels** | LSTA technology and innovation working group. Direct outreach to loan operations at agent banks and CLO managers. Partnership discussions with ClearPar, LoanIQ, and Versana as integration points rather than competitors. Hedera Foundation enterprise network. |
-| **Customer Segments** | Primary: CLO managers and credit funds (most active traders, most pain). Secondary: agent banks (register owners). Tertiary: insurers and pensions (holders). |
-| **Cost Structure** | Engineering (founder plus one). Legal and regulatory review of the token structure. Hedera network fees (negligible at pilot scale). Privy and Chainlink usage fees. Compliance and KYC provider fees once live. |
-| **Revenue Streams** | Per-trade settlement fee in basis points of par (the market already pays this to ClearPar). Facility onboarding fee paid by the agent bank. Annual register maintenance fee per facility. Later: interest distribution service fee. |
-
-### Why Web3 is Required
-
-The value is not "a database on a blockchain." It is that ownership, transfer, compliance, and payment collapse into a single verifiable object. A Web2 register still needs cash to move on a separate rail and still needs each party to trust the operator's ledger. Atomic DvP between an asset and a payment, with compliance enforced in the same execution, only exists on a shared ledger that both legs live on. Hedera specifically adds native deferred execution (Scheduled Transactions) and native compliance keys on the cash leg (HTS), which would otherwise require custom escrow contracts on other chains.
+- Follow the market's existing RFQ structure; do not introduce a public order book.
+- Keep legal and compliance controls explicit rather than treating token ownership as automatically sufficient.
+- Use familiar terms in the interface: par, price, counterparty, approval and settlement date.
+- Expose a receipt for every material action.
+- Make privacy a deployment requirement, not an afterthought.
+- Present testnet activity as a technical demonstration, not as a legally effective loan transfer.
 
 ---
 
-## 7. Execution Plan
+## 4. User Journeys
 
-### MVP Scope (Hackathon)
+### 4.1 Issue a facility token
 
-| Feature | Priority | Estimated Effort | Hedera Service |
-|---------|----------|-----------------|----------------|
-| Day 1 spikes: Privy Hedera signing, CRE reachability, ATS SDK setup | P0 | 4h | ATS, Privy, CRE |
-| ATS facility token issuance with identity registry and KYC grants; rejected transfer to unverified account | P0 | 6h | ATS (ERC-3643) |
-| HTS mock-USD stablecoin with KYC, freeze, pause keys; KYC grant tied to identity registry | P0 | 2h | HTS |
-| `SettlementEngine` contract: create, approve, settle; Foundry tests; deploy and verify on HashScan | P0 | 8h | Smart Contracts, HTS system contract |
-| Scheduled settlement: HSS `scheduleCall` from contract, SDK fallback | P0 | 4h | Scheduled Transactions |
-| Privy login, embedded wallet, Hedera account creation, 2-of-3 quorum policy on `approve` | P0 | 6h | Privy |
-| Front end: blotter, portfolio, register view, approvals inbox, HashScan links | P0 | 10h | Mirror Node |
-| `InterestDistributor` contract and CRE confidential workflow: HCS commitment, `handlerInTee`, hash verification, DON-signed report | P0 | 9h | CRE, Smart Contracts |
-| Scheduled interest distribution signed by paying agent, plus benchmark-rate/NAV reference post to HCS | P0 | 2h | Scheduled Transactions, HTS |
-| RFQ flow on HCS topic (request, quote, accept, confirm), with `CustomFixedFee` venue fee on the topic | P0 | 5.5h | HCS |
-| HashPack connect for observer access | P0 | 1h | HashPack |
-| Freeze and pause demo (borrower default, facility amendment) | P0 | 1h | ATS |
-| Public testnet walkthrough page with in-app feedback form (validation tier 3) | P0 | 2h | Mirror Node |
-| ATS upstream: GitHub issue describing the secondary-market extension, draft PR skeleton | P0 | 1h | ATS |
-| Repository: make GitHub repo public, add MIT license, README with setup and architecture, confirm all deployed contracts verified on HashScan | P0 | 1h | HashScan |
-| README, demo video, submission | P0 | 5h | HashScan |
+1. The administrative agent creates a token for one term-loan tranche through ATS.
+2. The agent records the token-to-facility mapping and governing-document reference.
+3. Approved institutions complete simulated KYC and are added to the identity and eligibility controls.
+4. The agent allocates tokens in proportion to each lender's opening principal position.
+5. The application proves the restriction by rejecting a transfer to an unverified account.
 
-Total: roughly 68 hours. Every feature above is committed, not a cut-line candidate: the qualification requirements for the main track plus both named bounties (Chainlink Confidential Workflow, Privy B2B) each depend on a different one of these rows, so none of them is optional. The relayer path for CRE report delivery and the SDK fallback for `scheduleCall` (see Risks) are technical hedges chosen up front, not scope cuts made under time pressure.
+### 4.2 Trade and settle a loan interest
 
-### Daily Plan
+```mermaid
+sequenceDiagram
+    autonumber
+    participant S as Seller desk
+    participant M as RFQ service / HCS
+    participant B as Buyer desk
+    participant P as Privy policy
+    participant E as SettlementEngine
+    participant H as Hedera schedule
+    participant L as ATS loan token
+    participant C as HTS mock USD
 
-| Day | Hours | Deliverable |
-|-----|-------|-------------|
-| 1 | 13 | Spikes resolved with go/no-go on Privy native signing and CRE write path. ATS loan token on testnet with 3 KYC'd holders. Stablecoin deployed. Message 5 practitioner contacts to book day-3 reviews. |
-| 2 | 13 | `SettlementEngine` tested and verified on HashScan. First atomic DvP executed via Scheduled Transaction from a script. A demo exists from this point. Sponsor SME review of quorum and CRE design (feedback cycle 1). |
-| 3 | 14 | Front end with blotter, portfolio, register. Privy login and quorum approval wired to `approve`. RFQ topic live with its `CustomFixedFee` venue charge. End-to-end trade from the UI. Record rough demo, send to practitioners (feedback cycle 2). Open ATS GitHub issue. |
-| 4 | 15 | HCS notice-commitment flow, `handlerInTee` CRE workflow (fetch, verify, compute, cross to DON), benchmark-rate NAV post, and `InterestDistributor`. Interest paid via scheduled transfer. RFQ on HCS. Seed data for two facilities. Publish walkthrough page, onboard early adopters (feedback cycle 3). |
-| 5 | 13 | Incorporate feedback, freeze and pause demo, HashPack observer connect, repo made public with license, README with architecture, HashScan links, and feedback changelog, five-minute video, submission. |
+    S->>M: Publish RFQ
+    B->>M: Submit quote
+    S->>M: Accept quote
+    M->>E: Create settlement instruction
+    S->>P: Request seller approval
+    B->>P: Request buyer approval
+    P->>E: Submit authorised approvals
+    E->>H: Schedule settle(tradeId)
+    H->>E: Execute on settlement date
+    E->>L: Transfer loan tokens
+    E->>C: Transfer payment
+    Note over E,C: One transaction: both legs succeed or both revert
+    E-->>M: Publish settlement receipt
+```
 
-### Definition of Done (what "fully functional" means for each feature)
+The settlement instruction contains the facility, buyer, seller, par amount, price, cash amount, currency, settlement date and a reference to the accepted RFQ. It contains no confidential document text.
 
-The Execution rubric's 5 requires a fully functional solution, not a proof of concept. Each feature has an acceptance test the demo video shows.
+Before settlement, the application checks that:
 
-| Feature | Done when |
-|---------|-----------|
-| ATS issuance | Facility token visible on HashScan. Three lenders verified in the identity registry. A transfer to a fourth, unverified account reverts with a compliance error shown in the UI. |
-| HTS stablecoin | Token on HashScan with KYC, freeze, and pause keys. KYC grant happens in the same action as identity registry verification. Transfer to a non-KYC'd account fails. |
-| Settlement engine | `settle` reverts if either approval is missing, if either allowance is short, or if the buyer's KYC was revoked between approval and settlement. Foundry tests cover all four paths. Contract verified on HashScan. |
-| Scheduled settlement | Schedule entity visible on HashScan before execution with its calldata. Executes at the settlement time without any off-chain trigger. Both balances change in the same consensus timestamp. |
-| Privy quorum | A single trader cannot approve. Compliance and PM approvals unlock the signature. The approvals inbox shows who approved and when. |
-| CRE accrual | HCS shows the salted-hash commitment before the run. The `handlerInTee` workflow's simulation log (or deployment execution log) shows the enclave fetched the notice, matched it against the HCS commitment, and only then computed accrual, with spread and day-count never appearing in the log. `InterestDistributor` holds per-holder amounts, delivered via a DON-signed report. Scheduled transfer pays every holder pro-rata on the payment date after the paying agent signs. |
-| RFQ | Request, quote, accept, confirm each produce an HCS message with a consensus timestamp shown in the blotter. The topic's `CustomFixedFee` charges a small HBAR fee per message, visible on HashScan. |
-| Oracle/NAV feed | The public benchmark rate and aggregate distribution total appear as an HCS message per interest period, independent of and alongside the confidential accrual computation. |
-| UX | A judge can complete a trade end-to-end from the README in under five minutes with no seed phrase, no HBAR, and no CLI. |
-| Repository | GitHub repo is public before the submission deadline, with an open-source license, a README covering setup and architecture, and every deployed contract's HashScan verification linked. |
+- both parties approved the same instruction;
+- the seller still owns and has authorised the required loan tokens;
+- the buyer has sufficient authorised mock USD;
+- the buyer remains eligible to hold the tranche; and
+- the trade has not expired, settled or been cancelled.
 
-### UX Principles
+### 4.3 Calculate and distribute interest
 
-The Execution rubric explicitly scores UI/UX. Institutional users judge software by how little it makes them think.
+The agent's rate notice may include private economics. The public testnet should not receive the notice itself. Instead, the agent commits to the notice by publishing a salted hash. Chainlink CRE retrieves the confidential data inside a trusted execution environment, verifies it against the commitment and calculates the amounts due.
 
-- **No crypto vocabulary in the interface.** Par, price, settlement date, counterparty, approvals. Never "gas", "sign transaction", "approve token", or "wallet".
-- **No HBAR for users.** The venue operator account pays network fees. Users log in with email through Privy and never fund anything.
-- **Every action has a receipt.** Each state change shows a HashScan link inline. Institutions trust what they can audit.
-- **The blotter is the home screen.** Traders live in a blotter. Open RFQs, pending approvals, scheduled settlements, and completed trades in one view.
-- **Approvals are an inbox, not a modal.** Compliance and PM approve from a queue with the trade details and the compliance check result visible.
-- **Errors say what to do.** "Buyer is not an eligible assignee for this facility. Request KYC verification." not "Transaction reverted."
+```mermaid
+sequenceDiagram
+    autonumber
+    participant A as Administrative agent
+    participant T as HCS commitment topic
+    participant R as CRE relayer
+    participant C as Chainlink CRE TEE
+    participant N as Mirror node
+    participant D as InterestDistributor
+    participant P as Paying agent
+    participant H as Holders
 
-### Team Roles
+    A->>A: Hash notice with random nonce
+    A->>T: Publish hash and period reference
+    R->>C: Trigger workflow with topic and sequence
+    C->>A: Fetch notice and nonce securely
+    C->>N: Read committed hash and holder snapshot
+    C->>C: Verify hash and calculate accrual
+    C-->>R: Return attested distribution output
+    R->>D: Submit output and evidence
+    P->>D: Authorise payment
+    D->>H: Distribute HTS mock USD
 
-| Member | Role | Key Responsibilities |
-|--------|------|---------------------|
-| Founder | Everything | Contracts, integration, front end, demo, pitch. Time-boxing is still the discipline that matters: the daily plan sequences dependencies so a demo exists early, and every feature listed is built and shipped by day 5, none held back as optional. The Definition of Done table is the quality bar. |
+    Note over A,C: Spread, day-count terms and nonce remain confidential
+```
 
-### Design Decisions
-
-| Decision | Options Considered | Choice | Rationale |
-|----------|-------------------|--------|-----------|
-| Loan register representation | HTS native fungible token with KYC key; ATS ERC-1400 only; ATS ERC-3643 | ATS ERC-3643 | Track requires ATS. ERC-3643 gives an on-chain identity registry and pluggable compliance, which is what assignee eligibility needs. HTS native KYC is a binary flag with no rule engine. |
-| Facility vs tranche granularity | One token per facility with ERC-1410 partitions per tranche; one token per tranche | One token per tranche for the hackathon | Simpler to reason about and to display. Partitions are the right v2 design for facilities with many tranches and are supported by ATS. |
-| Cash leg | HBAR; existing testnet stablecoin; own HTS permissioned token | Own HTS permissioned token | Need KYC and freeze on the cash leg to mirror the asset leg. HTS keys give that natively. |
-| Atomic DvP mechanism | (a) Scheduled Transaction wrapping a batch of both legs; (b) HIP-551 atomic batch of two natively signed legs; (c) single `settle` contract call, scheduled | (c) | (a) is not possible: a schedule wraps one transaction body and a batch cannot be scheduled. (b) works and is elegant, but inner transactions expire 180 seconds after their valid start, which conflicts with hours-long quorum approvals. (c) keeps atomicity inside one EVM execution, keeps Scheduled Transactions for the settlement date, and gives a verifiable contract on HashScan. (b) is documented as a stretch alternative. |
-| Who schedules settlement | Backend via SDK; contract via HSS `scheduleCall` (HIP-1215) | Contract, with SDK fallback | The contract scheduling its own settlement is the non-obvious integration judges reward and removes an off-chain dependency. |
-| Trade approval | On-chain multisig contract; Hedera threshold key on a per-trade escrow account; Privy quorum policy gating the desk wallet | Privy quorum | Matches how desks actually work (roles, not keys). Per-trade threshold-key accounts are clunky. Keeps the approval policy off-chain and private, which institutions prefer. |
-| Interest computation | On-chain from public terms; off-chain by the venue; CRE confidential workflow | CRE confidential workflow | Loan terms are private. Public on-chain computation leaks the spread. Venue computation is a trusted third party. CRE keeps the terms private and the result verifiable. |
-| Market structure | Order book; RFQ | RFQ | Loans trade bilaterally. RFQ is realistic and needs no matching engine. |
-| Front end | Extend ATS web app; custom app on ATS SDK | Custom app | ATS web app is a token admin panel. Traders need a blotter and portfolio view. The SDK is the reusable part. |
-| Production network | Public Hedera mainnet with encrypted state; a bank-run private chain (Fabric, DAML, Onyx-style); HashSphere | HashSphere | Public mainnet exposes positions and prices, which institutions will not accept. A bespoke private chain loses ATS, HTS, HCS, and Scheduled Transactions and becomes a custom build. HashSphere keeps every Hedera service and the exact hackathon codebase while making ownership and settlement private to the consortium. Demo stays on public testnet as the track requires. |
-
-### Post-Hackathon Roadmap
-
-- **Month 1-2:** Present to the LSTA technology and innovation working group. Five conversations with loan operations leads at CLO managers and agent banks. Implement the deemed-consent window for assignee eligibility. Replace mock KYC with a provider integrated through ATS external KYC lists.
-- **Month 3-6:** Design partner pilot with one CLO manager and one agent bank on a shadow register (tokenised mirror of a real facility, no legal transfer of ownership). Legal opinion on the token structure. Integration with ClearPar or LoanIQ as a settlement instruction source. Upstream the settlement engine and RFQ module to ATS.
-- **Month 6-12:** Deploy the unchanged codebase to a HashSphere consortium network with the pilot institutions as members and a regulator or auditor as observer. First legally binding tokenised assignment under a participation or assignment agreement. Multi-tranche facilities using ERC-1410 partitions. Production key management (Fireblocks or HSM through ATS integrations). Regulated stablecoin as the cash leg. Encrypted HCS payloads for RFQ.
+For the hackathon, the workflow must prove that a changed notice fails verification. Production report verification and the final Hedera delivery path remain subject to the exact CRE network and attestation interfaces available during implementation.
 
 ---
 
-## 8. Validation Strategy
+## 5. Functional Requirements
 
-Institutional finance does not produce hackathon-style validation. No agent bank signs a letter of interest in five days, and no CLO manager runs a paid trial of a testnet demo. The rubric's top marks (paid trials, revenue, churn) are written for accelerator-stage companies. What a hackathon project in this market can show is an evidence hierarchy: documented market demand, expert feedback on the design, and real users onboarded to the testnet product. This section builds all three.
+### 5.1 Priority definitions
 
-### Tier 1: Market Demand Already Validated (public evidence)
+- **P0:** required for the end-to-end demonstration;
+- **P1:** include if the P0 path is stable; and
+- **Later:** intentionally outside the five-day build.
 
-The problem and the shape of the solution are validated by institutions spending real money on them. Cite these in the pitch as market validation; they are stronger than any hackathon survey.
+### 5.2 MVP requirements
 
-| Evidence | What it validates | Source |
-|----------|------------------|--------|
-| Versana: BofA, Citi, JPMorgan and others funded a shared loan data platform; $900B+ across 1,500+ facilities | Banks will fund shared infrastructure for syndicated loans | Versana press releases |
-| LSTA delayed compensation rules and settlement-time reporting | The market measures and pays for its own settlement delay; the pain is quantified by the industry body itself | LSTA secondary trading reports |
-| Galaxy Digital $75M tokenised CLO (Jan 2026) | Institutional holders will take tokenised leveraged-loan exposure | Galaxy announcement |
-| JPMorgan Kinexys, Broadridge DLR ($1T+ monthly), HQLAx, Goldman DAP | Tier-1 banks already run atomic DvP for collateral on DLT; the mechanism is accepted | Company disclosures |
-| Hedera council banks and ATS partner issuers (ioBuilders, RedSwan) | Regulated issuers already tokenise on Hedera through ATS | Hedera docs |
+| ID | Priority | Requirement | Acceptance test |
+|---|---|---|---|
+| FR-01 | P0 | Issue one ATS ERC-3643 token for a term-loan tranche | Token and issuance transaction are visible on HashScan |
+| FR-02 | P0 | Register at least three eligible lenders | Eligible lenders can receive; an unverified account cannot |
+| FR-03 | P0 | Issue a KYC-gated HTS mock-USD token | Transfer to an account without KYC fails |
+| FR-04 | P0 | Create, quote and accept an RFQ | Each event appears in order with a consensus timestamp |
+| FR-05 | P0 | Apply a 2-of-3 desk approval policy through Privy | One approver cannot authorise the desk wallet; two can |
+| FR-06 | P0 | Create a complete settlement instruction | Both desks see identical immutable trade economics |
+| FR-07 | P0 | Schedule the settlement contract call | A pending schedule and its intended execution time are visible |
+| FR-08 | P0 | Exchange the loan and cash legs atomically | Both balances change or neither balance changes |
+| FR-09 | P0 | Recheck eligibility during settlement | Revoking buyer eligibility before execution causes a full revert |
+| FR-10 | P0 | Commit a private interest notice to HCS | HCS stores the hash, facility and period, not the notice |
+| FR-11 | P0 | Verify and calculate accrual in a CRE confidential workflow | Correct input produces output; altered input aborts |
+| FR-12 | P0 | Distribute interest in mock USD | Every holder receives the amount calculated from the snapshot |
+| FR-13 | P0 | Provide a blotter, portfolio, register and approval inbox | A new judge can complete the guided flow without a CLI |
+| FR-14 | P0 | Link material transactions to HashScan | Issue, RFQ, schedule and settlement receipts are inspectable |
+| FR-15 | P1 | Demonstrate freeze and pause controls | Default freeze and amendment pause block the expected actions |
+| FR-16 | P1 | Encrypt RFQ payloads | Authorised participants can read them; public observers cannot |
 
-### Tier 2: Expert Feedback Cycles (during the hackathon)
+### 5.3 Non-functional requirements
 
-These are the people who can be reached in five days and whose feedback carries weight with judges.
+| Area | Requirement |
+|---|---|
+| Security | No private key, API credential or confidential notice may be committed to the repository or ledger |
+| Privacy | Only synthetic data may be used on public testnet |
+| Reliability | Settlement must be idempotent and protected against replay and double execution |
+| Auditability | Every application state must link to its source transaction or message |
+| Usability | The end-to-end trade should take under five minutes in the guided demo |
+| Accessibility | Critical state must not be conveyed by colour alone |
+| Testing | Contracts cover approval, allowance, eligibility, replay and atomic-revert paths |
 
-| Source | Why they count | How to reach | Ask |
-|--------|---------------|-------------|-----|
-| Contacts from four years of institutional OTC infrastructure now on credit, loan, or operations desks | Practitioners who execute or settle loan trades | Direct message, 15-minute call or async video review | Does the approval flow match your desk? What breaks in the settlement flow? What would stop you running a shadow register? |
-| Privy and Chainlink engineers at the hackathon | Subject-matter experts for the quorum and confidential-compute integrations | Sponsor office hours, Discord | Is the quorum policy the right primitive? Is the confidential workflow the intended use of CRE? |
-| ATS maintainers | Owners of the platform this extends | GitHub issue on hashgraph/asset-tokenization-studio, Hedera Discord | Review the settlement engine as an upstream extension. Any objections to the ERC-3643 register mapping? |
-| Hedera Foundation enterprise or DeFi team | Know which council members care about this | Hackathon mentors | Which institutions should see this first? |
+### 5.4 Out of scope
 
-### Tier 3: Early Adopters Onboarded (testnet users)
-
-The product can onboard real users during the hackathon. Observers are a legitimate user class: auditors and risk teams read registers without trading.
-
-- Publish the testnet demo with a guided walkthrough by day 4.
-- Onboard judges, mentors, sponsor engineers, and Hedera community members as observers through HashPack, and as simulated desk users through Privy.
-- Track sign-ups, completed walkthroughs, and feedback submitted through an in-app form. Report the counts in the pitch.
-- Target: 10 to 20 onboarded testnet users with at least 5 structured feedback responses by submission.
-
-### Validation Milestones
-
-| Milestone | Target | Timeline |
-|-----------|--------|----------|
-| Practitioner design reviews | 3 practitioners from the founder's network review the day-3 demo and answer three structured questions | Days 3 to 5 |
-| Sponsor SME reviews | Privy and Chainlink engineers confirm the integration pattern is sound | Days 2 to 4 |
-| ATS maintainer engagement | GitHub issue opened describing the secondary market extension; maintainer response received | Days 3 to 5 |
-| Testnet early adopters | 10 to 20 users onboarded, 5 structured feedback responses | By submission |
-| Feedback incorporated | At least two changes made in response to feedback, documented in the README changelog | Day 5 |
-| Shadow-register conversations | 3 institutions in active discussion | 4 weeks after submission |
-| LSTA working group presentation | Demo presented | 8 weeks after submission |
-| Shadow register pilot | 1 facility mirrored with 2 participants; settlement time measured against the same trades' real settlement | Month 3 to 6 |
-
-### Market Feedback Cycles
-
-1. **Cycle 1 (days 2 to 3):** Sponsor SMEs review the integration design before it is built out. Adjust the quorum and CRE patterns based on what they say.
-2. **Cycle 2 (days 3 to 5):** Practitioners review the rough demo. Fold the answers into the day-5 polish. Document what changed. Quote them in the pitch, anonymised by role.
-3. **Cycle 3 (days 4 to 5):** Testnet early adopters complete the walkthrough and submit feedback in-app. Fix the top friction point before recording the final video.
-4. **Cycle 4 (post-submission):** Shadow-register pilot measuring real settlement-time reduction on real trades.
-
-### What to Say in the Pitch
-
-"We spoke to N practitioners who settle loan trades. Every one of them described the same three-week process. Two of them told us our approval flow matches how their desk actually works, and one told us it doesn't, so we changed it. The market itself has already validated the demand: three of the largest banks funded Versana, and JPMorgan and Broadridge already run atomic DvP for collateral. Nobody has done it for the loans themselves."
+- primary syndication and book-building;
+- legally binding production transfer of a loan interest;
+- real fiat or mainnet stablecoin settlement;
+- live identity verification or sanctions screening;
+- borrower-consent and deemed-consent workflows;
+- revolver drawdowns, amendments and waivers;
+- distressed trades, participations and multi-currency facilities;
+- an order book or automated matching engine; and
+- production custody, HSM and disaster-recovery arrangements.
 
 ---
 
-## 9. Go-To-Market Strategy
+## 6. Technical Architecture
 
-### Target Market
+### 6.1 System view
 
-- **TAM:** Global syndicated loan market, several trillion dollars outstanding. Secondary trading volume of roughly $1T per year in the US alone.
-- **SAM:** US leveraged loan secondary market. $1.4T outstanding, $1T annual trading, 300k to 400k tickets per year. Settlement fees at 1 to 2 basis points of par imply a $100M to $200M annual fee pool.
-- **Initial Target Segment:** CLO managers and credit funds trading US leveraged loans. They trade most, suffer most from delayed settlement, and have the fewest legacy system constraints.
+```mermaid
+flowchart TB
+    subgraph UX[Institutional web application]
+        B[RFQ blotter]
+        P[Portfolio and register]
+        A[Approval inbox]
+    end
 
-### Distribution Channels
+    subgraph CONTROL[Identity and control]
+        PRIVY[Privy authentication, wallets and quorum policy]
+        AGENT[Administrative-agent service]
+        RELAY[CRE report relayer]
+    end
 
-1. **Industry body first.** The LSTA sets the rules the market runs on. A working demo presented to its technology group is the fastest path to credibility with every member firm.
-2. **Direct to loan operations.** Operations leads feel the pain daily and can sponsor a shadow-register pilot without a trading mandate change.
-3. **Integrate with incumbents.** ClearPar and LoanIQ already hold the settlement instructions and the register data. Position SyndicateLend as the settlement layer under them, not a replacement.
-4. **Hedera enterprise network.** The Hedera Foundation and council members include financial institutions; ATS partners such as ioBuilders already serve tokenised bond issuers.
+    subgraph HEDERA[Hedera testnet]
+        ATS[ATS ERC-3643 loan token]
+        SETTLE[SettlementEngine]
+        USD[HTS mock USD]
+        HCS[HCS RFQ and commitment topics]
+        SCHEDULE[Scheduled Transactions]
+        DIST[InterestDistributor]
+        MIRROR[Mirror node]
+    end
 
-### Growth Strategy
+    subgraph CONFIDENTIAL[Confidential computation]
+        CRE[Chainlink CRE workflow in TEE]
+        NOTICE[Private rate-notice endpoint]
+    end
 
-- Land with shadow registers (no legal transfer), which need no regulatory change and prove the settlement-time reduction with real trades.
-- Expand to legally binding assignments once one agent bank accepts the token as the register of record for one facility.
-- Each agent bank that adopts brings every lender in every facility it agents. Network effects run through the agent bank, so the sales motion targets them second, after demand is shown from the buy side.
-- Partnership opportunities: ClearPar (settlement instructions), Versana (reference data), KYC providers through ATS external lists, regulated stablecoin issuers for the cash leg.
+    B --> HCS
+    A --> PRIVY
+    PRIVY --> SETTLE
+    AGENT --> ATS
+    AGENT --> HCS
+    SETTLE --> ATS
+    SETTLE --> USD
+    SETTLE --> SCHEDULE
+    HCS --> MIRROR
+    MIRROR --> CRE
+    NOTICE --> CRE
+    CRE --> RELAY
+    RELAY --> DIST
+    DIST --> USD
+    MIRROR --> B
+    MIRROR --> P
+```
+
+### 6.2 Responsibility by component
+
+| Component | Responsibility | Why it belongs here |
+|---|---|---|
+| Hedera ATS | Issue the loan token and enforce identity-based transfer controls | Reuses a security-token framework instead of creating a custom register |
+| `SettlementEngine` | Store trade state and execute both settlement legs | Atomicity must sit inside one execution boundary |
+| HTS mock USD | Represent the permissioned payment leg | Native KYC, freeze and pause controls mirror institutional cash restrictions |
+| HCS | Order RFQ events and anchor hashes of private notices | Creates a timestamped trail without publishing the underlying notice |
+| Scheduled Transactions | Hold an approved contract call until the agreed date | Supports deferred execution and network-visible status |
+| Mirror node | Serve read models for the UI and CRE verification | Keeps high-volume reads away from consensus transactions |
+| Privy | Authenticate users and enforce wallet-action quorum | Models the separation between trader, compliance and portfolio authority |
+| Chainlink CRE | Verify committed confidential inputs and calculate accrual in a TEE | Keeps private terms outside the public ledger and application server |
+| Relayer | Deliver CRE output to Hedera where a native CRE write path is unavailable | Limits the trusted role to delivery; evidence remains verifiable |
+
+### 6.3 Trade state model
+
+```mermaid
+stateDiagram-v2
+    [*] --> Draft
+    Draft --> AwaitingApprovals: RFQ accepted
+    AwaitingApprovals --> Scheduled: both desks authorised
+    AwaitingApprovals --> Cancelled: cancelled or expired
+    Scheduled --> Settled: both transfers succeed
+    Scheduled --> Failed: compliance, balance or allowance fails
+    Failed --> AwaitingApprovals: corrected and reissued
+    Settled --> [*]
+    Cancelled --> [*]
+```
+
+The contract must reject invalid transitions, repeated settlement, changed economics after approval and calls from unauthorised accounts.
+
+### 6.4 Data model
+
+| Record | Minimum fields |
+|---|---|
+| Facility | facility ID, tranche, currency, token address, agent, status, document hash/reference |
+| Institution | institution ID, Hedera/EVM account, KYC status, eligibility status |
+| RFQ | RFQ ID, facility, side, par amount, response deadline, creator |
+| Quote | quote ID, RFQ ID, counterparty, price, settlement date, expiry |
+| Trade | trade ID, accepted quote hash, buyer, seller, par, cash amount, state, schedule ID |
+| Interest period | facility, record date, payment date, commitment hash, HCS sequence, output hash |
+| Distribution | period, holder snapshot reference, recipient, amount, payment status |
+
+Monetary values use integers in the smallest supported unit. Prices and rates use fixed-point integers; floating-point arithmetic is prohibited in contracts.
 
 ---
 
-## 10. Pitch Outline
+## 7. Privacy, Security and Legal Boundaries
 
-Five minutes total. Hedera must be visible as the reason the solution works, not a deployment target.
+### 7.1 Privacy model
 
-1. **The Problem (30 sec):** "A fund sells $5M of a term loan to an insurer. They agree the price in ten minutes. The trade settles in three weeks. The market is so used to this that it built a compensation scheme to apologise for it. $1T of these trades happened last year."
-2. **The Solution (60 sec):** Show the register on HashScan. Show an RFQ agreed in the blotter. Show two desks approving through Privy quorum. Show the scheduled settlement sitting on HashScan before it executes. Show it execute: both legs in one transaction. "Three weeks became one day, and the compliance check ran inside the transfer."
-3. **Hedera Integration (45 sec):** ATS gave us an audited compliant register on day one. Scheduled Transactions let the trade schedule its own settlement with no bot. HTS gave the cash leg the same KYC controls as the asset. HCS is the audit trail. CRE computed interest on private terms and Hedera paid every holder. "Five services, each doing a job that would otherwise be a custom contract or an off-chain server." Then the privacy slide: "You're seeing this on public testnet so you can verify it on HashScan. In production the same code runs on HashSphere, so ownership and settlement are private to the consortium. Loan terms live in Chainlink's TEE. People and approvals live in Privy. Three privacy layers, nothing rebuilt."
-4. **Traction (30 sec):** Practitioner feedback quotes from the hackathon cycle. ATS maintainer feedback. Interest from the LSTA working group if obtained. Be honest about stage.
-5. **The Opportunity (30 sec):** $1.4T outstanding, $1T traded per year, fee pool of $100M to $200M at incumbent settlement pricing. Versana proved institutions will share data; Galaxy proved they will hold credit on-chain. Nobody has moved ownership on-chain yet.
-6. **The Ask / Next Steps (15 sec):** Introductions to agent banks and CLO managers for a shadow-register pilot. Upstream the settlement engine to ATS.
+```mermaid
+flowchart LR
+    PUBLIC[Public testnet<br/>synthetic positions and receipts]
+    PRIVATE[Private deployment<br/>participant-only ownership and settlement]
+    TEE[CRE TEE<br/>loan terms and accrual inputs]
+    PRIVY[Privy<br/>users, roles and approvals]
 
-### Key Metrics to Present
+    TEE -->|calculated output only| PUBLIC
+    PRIVY -->|authorised wallet action only| PUBLIC
+    PUBLIC -. same application pattern .-> PRIVATE
+```
 
-Every number on a slide gets a source in the footer. The Pitch rubric's 5 requires cited data.
+The hackathon uses public Hedera testnet so judges can inspect transactions. A production deployment cannot expose lender positions, trade prices or confidential facility terms publicly. HashSphere is the proposed private-network route because Hedera describes it as providing the same technology, services and toolkits within a private environment. This must still be validated through a production architecture review; testnet portability does not by itself prove that every operational configuration will be unchanged.
 
-| Metric | Value | Source |
-|--------|-------|--------|
-| US leveraged loans outstanding | $1.4T | LSTA, PitchBook LCD |
-| US secondary loan trading volume 2025 | $1T (record) | LSTA secondary trading report |
-| Trade tickets per year | 300k to 400k | LSTA (confirm exact figure) |
-| Median par trade settlement time | roughly T+20 (confirm exact figure) | LSTA settlement statistics |
-| Settlement time on SyndicateLend | T+1, configurable to T+0 | Own demo, HashScan timestamps |
-| Delayed compensation avoided per $5M trade at 19 days | Compute from LSTA formula for the pitch | LSTA delayed compensation rules |
-| Hedera transactions per trade and per interest period | About 10 and 20 to 40 | Own data, HashScan links |
-| Full-market account and transaction projection | 8k to 12k accounts, 15k to 20k tx/day | Section 4 model |
-| Settlement fee pool at incumbent pricing | $100M to $200M per year | 1 to 2 bp on $1T volume |
+| Data | Testnet treatment | Production requirement |
+|---|---|---|
+| Lender identity | Fictional institution and role | Permissioned identity with minimum necessary disclosure |
+| Position and trade amount | Synthetic | Private network or confidential representation |
+| RFQ and quote | Synthetic plain text for demo | Encrypted payload and restricted submit/read policy |
+| Credit agreement and rate notice | Never uploaded | Private document store; only hashes or references on-ledger |
+| Individual approvals | Stored in Privy | Retained under institutional access and audit policy |
+| Settlement receipt | Public | Visible to participants, agent and authorised supervisors |
 
-### Anticipated Judge Questions
+### 7.2 Security controls
 
-| Question | Answer |
-|----------|--------|
-| Banks will never put positions and prices on a public chain. How is this viable? | They won't, and they don't have to. The demo runs on public testnet because the track requires it and because HashScan makes it verifiable. Production runs on HashSphere, Hashgraph's private permissioned network with the same services, so ownership and settlement are visible only to the consortium. Loan terms never touch any ledger; they are computed inside Chainlink CRE's TEE. Individuals and internal approvals stay inside Privy. Three privacy layers, three owners, and the codebase does not change. |
-| Why not a private chain like the banks already use? | Bank-run chains work when one bank runs them for its own clients. A syndicated loan has 150 lenders and no natural operator, so the register must be neutral. HashSphere gives a consortium-run network that keeps ATS, HTS, HCS, and Scheduled Transactions, so we get neutrality and privacy without rebuilding the settlement stack on Fabric or DAML. |
-| Why Hedera over Ethereum? | Three things Hedera has natively that would be custom escrow contracts elsewhere: Scheduled Transactions for deferred, on-chain-visible settlement; HTS compliance keys on the cash leg; and ATS, which gave us an audited ERC-3643 register on day one. Fixed fees matter for institutions that need to budget. |
-| Is a loan token a security? | A loan piece is already a financial instrument transferred under LSTA assignment or participation agreements. The token represents the same interest under the same agreement. ERC-3643 was designed for exactly this compliance model. Legal opinion is roadmap month 3. |
-| Who is the issuer of the token? | The agent bank, which already keeps the register. SyndicateLend is the tooling; the agent bank holds the issuer role in ATS. Shadow registers let an agent bank mirror a facility before it commits to the token as the register of record. |
-| Why does the interest computation need a TEE? | Spread, day-count, and reset terms are private between borrower and lenders. Computing on-chain leaks them. Computing at the venue makes the venue a trusted party. CRE Confidential Workflows keep the terms private and the result verifiable, and the HCS commitment step means we can prove the confidential notice the enclave used is the same one anchored to the public audit trail at a specific consensus timestamp, not just that some computation happened somewhere private. |
-| How does a user get HBAR? | They don't. The venue operator pays fees. Users log in with email. |
-| What happens if the buyer loses eligibility between approval and settlement? | ERC-3643 compliance runs inside `settle`. The transfer reverts, neither leg moves, the trade is flagged in the blotter. No partial state, no unwind. |
-| What about the 180-second transaction validity window? | That is why settlement is a scheduled contract call rather than an atomic batch of two signed transactions. Approvals can take hours; the schedule waits. |
-| Why solo? Can you execute? | Four hackathon wins in the past year, one of which is in external audit. Four years building institutional OTC infrastructure. The daily plan and Definition of Done in the PRD are the execution strategy. |
-| What is the business model? | Per-trade settlement fee in basis points, which the market already pays ClearPar. Facility onboarding and register maintenance fees paid by agent banks. |
+- Separate issuer, compliance, paying-agent and venue permissions.
+- Bind every approval to a hash of the complete settlement instruction.
+- Use nonces, expiries and settled flags to prevent replay.
+- Apply checks-effects-interactions and reentrancy protection in settlement contracts.
+- Recheck ATS eligibility at execution rather than relying on approval-time status.
+- Hash confidential notices with a random 32-byte nonce to resist guessing.
+- Verify the CRE commitment before calculation and reject mismatched inputs.
+- Keep relayer authority narrow, rotate credentials and make submissions idempotent.
+- Record failure reasons without logging confidential input data.
 
-### Demo Video Shot List (5 minutes max)
+### 7.3 Legal boundary
 
-| Time | Shot |
-|------|------|
-| 0:00 | Problem in one sentence over a HashScan view of the empty register |
-| 0:30 | Issue facility token via ATS, register three lenders, grant KYC, show a rejected transfer to an unverified account |
-| 1:30 | RFQ: request, quote, accept in the blotter; HCS topic view with the venue fee visible on HashScan |
-| 2:15 | Privy quorum: trader submits, compliance approves, PM approves, wallet signs |
-| 2:45 | Scheduled settlement visible on HashScan; executes; both balances change |
-| 3:30 | Interest: HCS commitment hash, CRE workflow log showing the hash matched with no terms shown, benchmark-rate NAV post to HCS, distribution scheduled, paying agent signs, holders paid |
-| 4:15 | Freeze on default, pause on amendment |
-| 4:40 | Architecture slide, repo link, HashScan links |
+The prototype demonstrates a technical register; it does not establish that possession of a token constitutes legal ownership of a loan. A production launch requires counsel to align the token, agent register, credit agreement, assignment documentation, perfection, custody and insolvency treatment. The proposed sequence is:
+
+1. mirror real positions in a non-authoritative shadow register;
+2. reconcile the shadow register against the agent's books;
+3. obtain a legal opinion and amend the governing documents; and
+4. move to an authoritative digital register for a controlled pilot facility.
 
 ---
 
-## Parking Lot (Future Ideas)
+## 8. Delivery Plan
 
-- **Deemed-consent window.** Time-bound borrower consent on assignee eligibility, matching LSTA rules, implemented as a compliance module in ERC-3643.
-- **ERC-1410 partitions for multi-tranche facilities.** One ATS security per facility, one partition per tranche.
-- **HIP-551 atomic batch settlement.** Two natively signed legs submitted as one batch, for desks with fast approval. Removes allowances and the settlement contract from the critical path.
-- **Repo collateral.** Post loan tokens as collateral against an HTS stablecoin loan, with programmatic release. Directly addresses the track's first idea.
-- **Richer NAV feed.** The MVP posts the public benchmark rate and aggregate distribution as a lightweight NAV-adjacent reference. Post-hackathon, extend the same workflow to pull a full pricing source and publish a proper daily mark per facility for portfolio valuation.
-- **Upstream to ATS.** Package `SettlementEngine` and the RFQ module as an ATS "secondary market" extension with a pull request to the ATS repo.
-- **Agent bank console.** Register management view for the agent bank: amendments, waivers, holder reports, snapshot at record date.
-- **Delayed compensation calculator.** Show, per trade, how much delayed comp would have accrued under LSTA rules versus zero on SyndicateLend. Strong pitch metric.
+### 8.1 Five-day plan
+
+| Day | Deliverable |
+|---|---|
+| 1 | Confirm ATS deployment, Privy signing path and CRE interfaces; issue the loan and mock-USD tokens; onboard test institutions |
+| 2 | Implement and test `SettlementEngine`; execute one atomic test settlement; expose HashScan receipts |
+| 3 | Build the RFQ blotter, portfolio and approval inbox; connect Privy quorum; schedule an end-to-end settlement |
+| 4 | Add HCS notice commitment, confidential CRE calculation and interest distribution; test altered-notice rejection |
+| 5 | Add lifecycle controls, fix the highest-impact usability issues, publish documentation and record the demo |
+
+### 8.2 Build order and fallback decisions
+
+| Dependency | Primary path | Controlled fallback |
+|---|---|---|
+| Privy to Hedera | Privy EVM wallet calls contracts through Hedera JSON-RPC | Use Privy for policy-bound EVM approval only; keep native administrative transactions in the backend demo account |
+| Deferred settlement | Hedera `ScheduleCreateTransaction` wrapping `ContractExecuteTransaction` with `waitForExpiry` | Execute the same contract call manually at the chosen demo time and label scheduling incomplete |
+| CRE delivery | Relayer submits verifiable CRE output to `InterestDistributor` | Store and display the simulated signed/attested output, then submit through an authorised demo adapter |
+| Interest payout | Contract-mediated HTS distribution to the small demo holder set | Use ATS Mass Payout or batched Hedera SDK transfers if contract limits block the path |
+
+Fallbacks must be disclosed in the README and demo. A simulated or adapted path must never be presented as a production integration.
+
+### 8.3 Definition of done
+
+The MVP is complete only when a judge can:
+
+1. inspect an ATS-issued tranche and three eligible holders;
+2. observe a rejected transfer to an ineligible account;
+3. create, quote and accept an RFQ;
+4. see that one internal approver is insufficient;
+5. complete the required approvals and inspect the pending settlement;
+6. execute settlement and confirm both balances changed together;
+7. revoke eligibility in a second scenario and observe a full revert;
+8. inspect the HCS notice commitment;
+9. see a valid CRE calculation and an altered-notice rejection; and
+10. confirm interest arrived in each holder's mock-USD balance.
+
+### 8.4 Hackathon alignment
+
+| Evaluation area | Demonstrated contribution |
+|---|---|
+| Asset Tokenization Studio | ERC-3643 issuance, lender eligibility, restricted transfer and lifecycle controls |
+| Secondary market | Market-appropriate RFQ workflow and atomic delivery-versus-payment settlement |
+| Hedera services | ATS, HTS, HCS, Smart Contract Service, Scheduled Transactions and mirror-node reads each have a defined role |
+| Chainlink confidential workflow | Private notice retrieval, commitment verification and accrual calculation inside a TEE |
+| Privy B2B workflow | Role-based 2-of-3 approval before an institutional wallet action |
+| Product execution | A browser-based, end-to-end flow with positive and negative test cases and inspectable receipts |
 
 ---
 
-## Section-to-Criteria Mapping
+## 9. Validation and Success Measures
 
-| PRD Section | Judging Criteria Addressed |
-|-------------|---------------------------|
-| 1. Problem Statement | Feasibility, Pitch |
-| 2. Solution Overview | Innovation, Pitch, Execution |
-| 3. Hedera Integration | Integration (primary), Innovation |
-| 4. Network Impact | Success (primary) |
-| 5. Innovation | Innovation (primary) |
-| 6. Feasibility & Business Model | Feasibility (primary) |
-| 7. Execution Plan | Execution (primary) |
-| 8. Validation Strategy | Validation (primary) |
-| 9. Go-To-Market | Execution, Success |
-| 10. Pitch Outline | Pitch (primary) |
+### 9.1 Hackathon success metrics
+
+| Measure | Target |
+|---|---|
+| End-to-end settlement completion | 100% on the documented happy path |
+| Partial settlement incidents | 0 |
+| Negative-path contract tests | Approval, allowance, eligibility, replay and notice mismatch all pass |
+| Guided demo completion time | Under five minutes |
+| Practitioner reviews | At least three loan-market or operations practitioners |
+| Structured test-user responses | At least five |
+| Changes made from feedback | At least two, recorded in the README |
+
+### 9.2 Pilot metrics
+
+The post-hackathon pilot should measure outcomes rather than network activity alone:
+
+- median time from trade agreement to settlement readiness;
+- number and age of unmatched exceptions;
+- time spent reconciling agent and counterparty records;
+- failed settlements by cause;
+- delayed-compensation events avoided;
+- cash and collateral held while awaiting settlement; and
+- agreement rate between the shadow register and the agent's books.
+
+### 9.3 Validation plan
+
+During the hackathon, three groups should review the product:
+
+| Reviewer | Question |
+|---|---|
+| Loan trader or operations practitioner | Does the RFQ-to-settlement sequence reflect the real desk workflow? |
+| ATS, Privy and Chainlink engineers | Are the integrations being used as intended, and which assumptions remain? |
+| Test user unfamiliar with the project | Can the trade be completed without crypto-specific guidance? |
+
+Feedback should be recorded as: observation, evidence, decision and resulting change. Placeholder endorsements must not appear in the pitch.
+
+---
+
+## 10. Business Model and Adoption
+
+### 10.1 Initial customer
+
+The initial buyer is a CLO manager or credit fund with frequent secondary trading and a loan-operations team that bears the cost of delayed settlement. The administrative agent is the essential system partner because it controls the official lender register.
+
+### 10.2 Commercial model
+
+Potential revenue streams are:
+
+- a settlement fee per completed trade;
+- a facility onboarding and integration fee;
+- an annual register-maintenance fee; and
+- an interest-distribution service fee.
+
+Pricing is not validated in the hackathon and should not be presented as established market willingness to pay.
+
+### 10.3 Adoption path
+
+1. Run a shadow-register pilot with one buy-side institution and one administrative agent.
+2. Compare the tokenised workflow with the same real-world operational process.
+3. Integrate with existing sources such as agent-bank systems, ClearPar or Versana rather than asking users to re-enter data.
+4. Establish the legal basis for the digital register on one facility.
+5. Expand across facilities administered by the same agent.
+
+### 10.4 Competitive position
+
+| Category | Strength | Remaining gap addressed by SyndicateLend |
+|---|---|---|
+| ClearPar | Established settlement workflow and documentation | Atomic exchange of a digital loan position and payment |
+| Loan IQ | Agent-bank servicing and books of record | A participant-verifiable cross-institution register |
+| Versana | Normalised, real-time agent data | Transfer and settlement of ownership |
+| Tokenised CLOs | On-chain issuance of securitised credit exposure | Tokenisation and transfer of the underlying syndicated loan interest |
+
+SyndicateLend should be positioned as a settlement layer that can integrate with these systems, not as a claim that their functions are unnecessary.
+
+---
+
+## 11. Risks and Open Questions
+
+| Risk or question | Impact | Response |
+|---|---|---|
+| Token does not constitute legal title | Product cannot become the official register | Begin with a shadow register and obtain facility-specific legal analysis |
+| Borrower or agent consent remains off-platform | Settlement cannot be fully automated | Add configurable consent states and time windows after the MVP |
+| Privy cannot sign a required Hedera-native transaction | Approval flow breaks | Keep user actions on the EVM path and test this dependency on day one |
+| CRE attestation or Hedera write path differs from the design | Interest delivery is not end to end | Prove confidential calculation first and isolate delivery behind a small adapter |
+| Public testnet exposes transaction data | Demo could model an unsafe production design | Use synthetic data and show the private deployment boundary explicitly |
+| Payment token is not commercial bank money | Atomicity is demonstrated without removing real cash risk | Treat mock USD as a test instrument; evaluate regulated stablecoin or tokenised deposit later |
+| Scheduled execution fails because funds or eligibility changed | Trade misses settlement date | Recheck preconditions, report a precise failure and require a newly approved instruction |
+| Five-day scope is too broad for one builder | Core flow may be unstable | Complete issuance and atomic settlement before confidential interest and P1 controls |
+
+Open design questions for practitioner review:
+
+- Which party should be authorised to create and cancel a settlement instruction?
+- At what point should borrower and agent consent become final?
+- Is T+1 a meaningful target, or should the product settle immediately once all conditions are met?
+- Should the register represent assignments, participations or both?
+- What evidence must an agent retain outside the ledger for a legally effective transfer?
+
+---
+
+## 12. Demonstration Narrative
+
+The five-minute demo should tell one story:
+
+1. A $5 million loan trade is agreed quickly but normally remains operationally exposed while documents, eligibility, cash and the agent register are coordinated.
+2. The agent issues a synthetic facility through ATS and approves three lenders.
+3. A seller requests a quote and accepts a buyer's price.
+4. The buyer's trader cannot act alone; the required Privy quorum authorises the desk wallet.
+5. The approved settlement appears as a scheduled transaction.
+6. At execution, the loan tokens and mock USD move together. A second trade fails completely after buyer eligibility is revoked.
+7. The agent publishes a hash of a private interest notice. CRE verifies the notice confidentially, calculates the distribution and rejects a modified notice.
+8. Holders receive mock USD, and the application links the complete trail to Hedera records.
+
+The closing claim should remain precise:
+
+> SyndicateLend demonstrates that a compliant loan register, institutional approvals, confidential interest calculation and atomic settlement can operate as one workflow. The next step is a shadow-register pilot with an administrative agent and a loan investor.
+
+---
+
+## 13. Research Sources
+
+Market figures and product claims in this PRD were checked against the following primary or first-party sources on 10 September 2026:
+
+1. [LSTA — 1Q26 Secondary Trading and Settlement Study](https://www.lsta.org/content/secondary-trading-settlement-study-first-quarter-2026/) — reports $971 billion of secondary trading in 2025 and the subsequent trailing-twelve-month milestone.
+2. [LSTA — 2Q25 Secondary Loan Trading Volumes](https://www.lsta.org/content/lsta-secondary-trading-monthly-executive-summary-2q25-secondary-loan-trading-volumes-spike-again-to-a-record-262-billion/) — reports index outstandings approaching $1.5 trillion and 2025 trading activity.
+3. [LSTA — April 2025 market overview](https://events.lsta.org/app/uploads/2025/04/Welcome-Address-09Apr25.pdf) — mean and median par settlement-time history and the ten-year average.
+4. [Versana — 1,500-facility milestone](https://versana.io/versana-surpasses-major-milestone-with-more-than-1500-syndicated-loan-facilities-now-available-on-its-transformative-digital-data-platform/) — approximately $900 billion of commitments on the platform.
+5. [Galaxy — Initial closing of tokenised CLO](https://investor.galaxy.com/news-releases/news-release-details/galaxy-announces-initial-closing-debut-tokenized-clo-75-million) — $75 million closing announced in January 2026.
+6. [Hedera — Asset Tokenization Studio](https://docs.tokenization-studio.hedera.com/) — ATS compliance, token operations and distribution capabilities.
+7. [Hedera — Scheduled Transactions](https://docs.hedera.com/hedera/core-concepts/scheduled-transaction) — signature collection, expiry execution and supported transaction types.
+8. [Hedera — HashSphere](https://hedera.com/product/hashsphere/) — private deployment model and available Hedera services and tooling.
+9. [Privy — Quorum approvals](https://docs.privy.io/controls/common-use-cases/quorum-approval) — threshold authorisation for wallet actions.
+10. [Chainlink — Confidential Workflows](https://chain.link/privacy) — TEE-based confidential inputs and computation in CRE.
+11. [LSTA — Delayed Compensation Regime](https://www.lsta.org/content/the-lsta-delayed-compensation-regime/?ind=0&wpdmdl=1172) — operating rules for allocating economics after delayed settlement.
