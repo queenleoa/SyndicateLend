@@ -47,6 +47,9 @@ export async function provisionInstitution(input: { id: string; name: string; me
   const erc20Abi = [
     { type: "function", name: "approve", stateMutability: "nonpayable", inputs: [{ name: "spender", type: "address" }, { name: "value", type: "uint256" }], outputs: [{ name: "", type: "bool" }] },
   ] as const;
+  // HIP-719: an HTS token exposes associate() at its own address; the desk must associate before
+  // it can be KYC'd and receive mock USD.
+  const hrc719Abi = [{ type: "function", name: "associate", stateMutability: "nonpayable", inputs: [], outputs: [{ name: "", type: "uint256" }] }] as const;
   // Privy evaluates DENY before ALLOW and denies anything no rule allows, so there is no
   // catch-all deny rule: only the two allow rules below (and an explicit export ban) exist.
   const policy = await p.policies().create({
@@ -76,6 +79,17 @@ export async function provisionInstitution(input: { id: string; name: string; me
           { field_source: "ethereum_transaction", field: "value", operator: "eq", value: "0" },
           { field_source: "ethereum_calldata", field: "function_name", abi: erc20Abi, operator: "eq", value: "approve" },
           { field_source: "ethereum_calldata", field: "approve.spender", abi: erc20Abi, operator: "eq", value: v.settlementEngine.toLowerCase() },
+        ],
+      },
+      {
+        name: "Mock USD: associate the desk account (HIP-719)",
+        method: "eth_signTransaction",
+        action: "ALLOW",
+        conditions: [
+          { field_source: "ethereum_transaction", field: "chain_id", operator: "eq", value: String(v.chainId) },
+          { field_source: "ethereum_transaction", field: "to", operator: "eq", value: v.mockUsd.toLowerCase() },
+          { field_source: "ethereum_transaction", field: "value", operator: "eq", value: "0" },
+          { field_source: "ethereum_calldata", field: "function_name", abi: hrc719Abi, operator: "eq", value: "associate" },
         ],
       },
       { name: "Never export the desk key", method: "exportPrivateKey", action: "DENY", conditions: [] },

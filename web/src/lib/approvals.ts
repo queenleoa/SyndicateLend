@@ -1,3 +1,4 @@
+import { formatRequestForAuthorizationSignature, generateAuthorizationSignature, type WalletApiRequestSignatureInput } from "@privy-io/node";
 import { privy } from "./privy-server";
 import { venue } from "./venue";
 
@@ -53,22 +54,22 @@ export async function authorizeIntent(intentId: string, userJwt: string) {
   const rd = (intent as { request_details: { method: string; url: string; body: unknown } }).request_details;
   const appId = process.env.PRIVY_APP_ID ?? process.env.NEXT_PUBLIC_PRIVY_APP_ID!;
   const url = rd.url.startsWith("http") ? rd.url : `${API.replace(/\/v1$/, "")}${rd.url}`;
-  // The docs do not say whether the intent-creation expiry header is part of the signed payload,
-  // so try the bare request first and fall back to echoing the intent expiry.
-  const attempts: Array<Record<string, string>> = [
+  // Signed object = intent request + fresh timestamp + intent_id (per the client SDK's input type);
+  // the same timestamp is posted with the signature. Variants only differ in the expiry header.
+  const timestamp = Date.now();
+  const headerVariants: Array<Record<string, string>> = [
     { "privy-app-id": appId },
     { "privy-app-id": appId, "privy-request-expiry": String((intent as { expires_at: number }).expires_at) },
   ];
+  const key = await userSigningKeyViaRest(userJwt);
   let last: unknown = null;
-  for (const headers of attempts) {
-    const [signature] = await p.utils().requestSigner().generateAuthorizationSignatures({
-      authorizationContext: { user_jwts: [userJwt] },
-      input: { version: 1, method: rd.method as "POST", url, body: rd.body, headers: headers as { "privy-app-id": string } },
-    });
+  for (const headers of headerVariants) {
+    const input = { version: 1, method: rd.method, url, body: rd.body, timestamp, intent_id: intentId, headers } as unknown as WalletApiRequestSignatureInput;
+    const signature = generateAuthorizationSignature({ authorizationPrivateKey: key, input: formatRequestForAuthorizationSignature(input) });
     const res = await fetch(`${API}/intents/${intentId}/authorize`, {
       method: "POST",
       headers: basicAuth(),
-      body: JSON.stringify({ signature, timestamp: Date.now() }),
+      body: JSON.stringify({ signature, timestamp }),
     });
     const json = await res.json();
     if (res.ok) return json;
@@ -76,6 +77,26 @@ export async function authorizeIntent(intentId: string, userJwt: string) {
     if (!/signature/i.test(JSON.stringify(json))) break;
   }
   throw new Error(`authorize failed: ${JSON.stringify(last)}`);
+}
+
+/** POST /v1/wallets/authenticate without HPKE: returns the user's time-bound P-256 signing key. */
+async function userSigningKeyViaRest(userJwt: string): Promise<string> {
+  const res = await fetch(`${API}/wallets/authenticate`, { method: "POST", headers: basicAuth(), body: JSON.stringify({ user_jwt: userJwt }) });
+  const json = await res.json();
+  if (!res.ok || !json.authorization_key) throw new Error(`user key exchange failed: ${JSON.stringify(json)}`);
+  return json.authorization_key as string;
+}
+
+/** Submit a signature produced client-side (useAuthorizationSignature) for an intent. */
+export async function submitIntentSignature(intentId: string, signature: string, timestamp: number) {
+  const res = await fetch(`${API}/intents/${intentId}/authorize`, {
+    method: "POST",
+    headers: basicAuth(),
+    body: JSON.stringify({ signature, timestamp }),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(`authorize failed: ${JSON.stringify(json)}`);
+  return json;
 }
 
 export async function rejectIntent(intentId: string) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useAuthorizationSignature } from "@privy-io/react-auth";
 import { useApi } from "@/lib/use-me";
 
 type Member = { email: string; role: string; privyUserId?: string };
@@ -73,6 +74,7 @@ export function ApprovalsInbox() {
   const [data, setData] = useState<Payload | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const { generateAuthorizationSignature } = useAuthorizationSignature();
 
   const load = useCallback(() => api("/api/approvals").then(setData).catch((e) => setErr(e.message)), [api]);
   useEffect(() => {
@@ -85,7 +87,26 @@ export function ApprovalsInbox() {
     setBusy(id + action);
     setErr(null);
     try {
-      await api(`/api/approvals/${id}/${action}`, { method: "POST" });
+      if (action === "authorize") {
+        // Sign the intent's canonical request bytes in the browser with this member's Privy key.
+        const { payloads, timestamp } = (await api(`/api/approvals/${id}/payload`)) as { payloads: string[]; timestamp: number };
+        let lastErr: Error | null = null;
+        for (const b64 of payloads) {
+          const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+          const { signature } = await generateAuthorizationSignature(bytes);
+          try {
+            await api(`/api/approvals/${id}/authorize`, { method: "POST", body: JSON.stringify({ signature, timestamp }) });
+            lastErr = null;
+            break;
+          } catch (e) {
+            lastErr = e as Error;
+            if (!/signature/i.test(lastErr.message)) break;
+          }
+        }
+        if (lastErr) throw lastErr;
+      } else {
+        await api(`/api/approvals/${id}/${action}`, { method: "POST" });
+      }
       await load();
     } catch (e) {
       setErr((e as Error).message);
