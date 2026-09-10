@@ -1,0 +1,18 @@
+{
+  "name": "syndicatelend",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Private tokenised syndicated-loan register and RFQ secondary market on Hedera (ATS + HTS + HCS + Scheduled Transactions), with Privy approvals and Chainlink CRE confidential interest calculation.",
+  "workspaces": [
+    "ops",
+    "web"
+  ],
+  "scripts": {
+    "ops": "npm run --workspace ops",
+    "contracts:build": "cd contracts && forge build",
+    "contracts:test": "cd contracts && forge test -vv"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

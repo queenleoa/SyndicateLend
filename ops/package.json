@@ -1,0 +1,10 @@
+{
+  "name": "@syndicatelend/ops",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Administrative-agent scripts: ATS loan-token issuance, HTS mock-USD, HCS topics, deployments.",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}
