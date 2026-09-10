@@ -27,7 +27,7 @@ out/
 broadcast/
 artifacts/
 typechain-types/
-lib/
+contracts/lib/
 
 # Chainlink CRE
 .cre/
@@ -51,3 +51,7 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# Institution directory contains member emails and Privy ids; provision locally via the admin page or scripts/provision.mts
+web/data/org.json
+web/data/privy-events.jsonl
