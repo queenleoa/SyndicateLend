@@ -10,6 +10,19 @@ Private tokenised register and RFQ secondary market for syndicated-loan interest
 
 Full product spec: [HACKATHON-PRD.md](HACKATHON-PRD.md).
 
+## Live on Hedera testnet (Day 1, 2026-09-10)
+
+| Artefact | Id | Inspect |
+|---|---|---|
+| Loan tranche (ATS bond-type security, Reg S, whitelist + internal KYC) | `0.0.10459721` / `0x1600f4a4609b9e9c48c432a16732da2634b7b1b7` | [HashScan](https://hashscan.io/testnet/contract/0.0.10459721) |
+| SettlementEngine (Sourcify exact match) | `0.0.10459674` / `0x36b7067ee318716b01adac233050b7346975bfc1` | [HashScan](https://hashscan.io/testnet/contract/0.0.10459674) |
+| Mock USD (HTS, KYC / freeze / pause keys) | `0.0.10459660` | [HashScan](https://hashscan.io/testnet/token/0.0.10459660) |
+| HCS RFQ topic | `0.0.10459663` | [HashScan](https://hashscan.io/testnet/topic/0.0.10459663) |
+| HCS notice-commitment topic | `0.0.10459666` | [HashScan](https://hashscan.io/testnet/topic/0.0.10459666) |
+| Administrative agent | `0.0.10457020` | [HashScan](https://hashscan.io/testnet/account/0.0.10457020) |
+
+Three eligible lenders hold the tranche (seller 150m par, holder 100m par, buyer 0 par with 10m mock USD). Restriction evidence: a [loan transfer to an unverified account reverted](https://hashscan.io/testnet/transaction/0xd59ce30c7a35ed6ba2bd71a48735dcfaa986c9d649c12e5f6b95550e819b6255) and a mock-USD transfer to it failed with `ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN`. ATS also refused to issue to the desks before they were whitelisted. Reproduce with `npm run negative-test` in `ops/`.
+
 ## Repository layout
 
 | Path | Contents |
@@ -45,14 +58,17 @@ npm run topics                    # HCS topics: RFQ events, notice commitments
 # Settlement engine (funded with HBAR to pay its own scheduled executions)
 cd ../contracts && source ../.env && forge script script/DeploySettlementEngine.s.sol \
   --rpc-url hedera_testnet --broadcast --private-key $OPERATOR_PRIVATE_KEY
-# then put the address in ops/deployments/testnet.json under settlementEngine.address
+cd ../ops && npm run record-engine -- --address <engine address>
+# verification: forge verify-contract <addr> src/SettlementEngine.sol:SettlementEngine --chain-id 296 --verifier sourcify --verifier-url https://sourcify.dev/server --constructor-args $(cast abi-encode "constructor(address,address)" $OPERATOR_EVM_ADDRESS $OPERATOR_EVM_ADDRESS)
+# note: send relay transactions from one account sequentially; Hedera's relay rejects overlapping nonces
 
 cd ../ops
 npm run issue                     # ATS bond-type security via the 8.0.0 factory + roles + whitelist
-npm run onboard -- --name "Meridian Credit Partners" --role seller --evm $DESK_SELLER_EVM_ADDRESS --usd 0
-npm run onboard -- --name "Halcyon Loan Fund IV"     --role buyer  --evm $DESK_BUYER_EVM_ADDRESS  --usd 10000000
-npm run onboard -- --name "Northgate Insurance"      --role lender --evm $DESK_LENDER3_EVM_ADDRESS --usd 1000000
-npm run onboard -- --name "Unverified account"       --role outsider --evm $DESK_OUTSIDER_EVM_ADDRESS --no-kyc
+npm run onboard -- --name "Meridian Credit Partners" --role seller --evm $DESK_SELLER_EVM_ADDRESS --usd 0 --key $DESK_SELLER_PRIVATE_KEY
+npm run onboard -- --name "Halcyon Loan Fund IV"     --role buyer  --evm $DESK_BUYER_EVM_ADDRESS  --usd 10000000 --key $DESK_BUYER_PRIVATE_KEY
+npm run onboard -- --name "Northgate Insurance"      --role lender --evm $DESK_LENDER3_EVM_ADDRESS --usd 1000000 --key $DESK_LENDER3_PRIVATE_KEY
+npm run onboard -- --name "Unverified account"       --role outsider --evm $DESK_OUTSIDER_EVM_ADDRESS --no-kyc --hbar 5
+# (--key lets the script sign the HTS token association for the desk; a Privy wallet instead calls the token's associate() facade)
 npm run eligibility -- --evm $DESK_SELLER_EVM_ADDRESS  --grant
 npm run eligibility -- --evm $DESK_BUYER_EVM_ADDRESS   --grant
 npm run eligibility -- --evm $DESK_LENDER3_EVM_ADDRESS --grant

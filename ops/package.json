@@ -15,7 +15,10 @@
     "eligibility": "tsx src/set-eligibility.ts",
     "allocate": "tsx src/allocate.ts",
     "smoke": "tsx src/smoke.ts",
-    "record-engine": "tsx src/record-engine.ts"
+    "record-engine": "tsx src/record-engine.ts",
+    "negative-test": "tsx src/negative-test.ts",
+    "whitelist": "tsx src/whitelist-address.ts",
+    "settle-demo": "tsx src/settle-demo.ts"
   },
   "dependencies": {
     "@hashgraph/asset-tokenization-sdk": "^8.0.0",

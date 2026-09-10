@@ -80,6 +80,11 @@ contract SettlementEngine is AccessControl, ReentrancyGuard {
     /// @notice Gas limit forwarded to the scheduled `settle` call.
     uint256 public scheduledGasLimit = 3_000_000;
 
+    /// @notice Seconds added to `settleAt` when scheduling. The network executes a schedule at its
+    ///         expiry second, but the EVM block timestamp seen by the call can lag that instant by a
+    ///         fraction, which would trip the `settleAt` check. Observed on testnet (trade #1).
+    uint64 public constant SCHEDULE_MARGIN = 10;
+
     // ---------------------------------------------------------------------
     // Events
     // ---------------------------------------------------------------------
@@ -299,9 +304,9 @@ contract SettlementEngine is AccessControl, ReentrancyGuard {
 
     function _schedule(uint256 tradeId, Trade storage t) internal {
         bytes memory callData = abi.encodeWithSelector(this.settle.selector, tradeId);
-        // If the settlement time is already past, execution is due now; the schedule service still
-        // requires a future expiry, so give it a minimal one.
-        uint256 expiry = t.settleAt > block.timestamp ? t.settleAt : block.timestamp + 5;
+        // Execute shortly after settleAt (never before it). If settleAt is already past, execution
+        // is due now; the schedule service still requires a future expiry, so give it a minimal one.
+        uint256 expiry = t.settleAt > block.timestamp ? t.settleAt + SCHEDULE_MARGIN : block.timestamp + SCHEDULE_MARGIN;
         (bool ok, bytes memory ret) = HederaScheduleServiceLib.HSS.call(
             abi.encodeWithSelector(
                 IHederaScheduleService.scheduleCall.selector, address(this), expiry, scheduledGasLimit, uint64(0), callData

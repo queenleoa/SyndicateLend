@@ -126,7 +126,7 @@ contract SettlementEngineTest is Test {
         assertEq(hss.count(), 1);
         (address to, uint256 expiry, uint256 gasLimit, bytes memory data, address payer,) = hss.scheduled(0);
         assertEq(to, address(engine));
-        assertEq(expiry, t.settleAt);
+        assertEq(expiry, t.settleAt + engine.SCHEDULE_MARGIN());
         assertEq(gasLimit, engine.scheduledGasLimit());
         assertEq(payer, address(engine));
         assertEq(data, abi.encodeWithSelector(SettlementEngine.settle.selector, id));
@@ -151,7 +151,10 @@ contract SettlementEngineTest is Test {
         _approveBoth(id, h);
         SettlementEngine.Trade memory t = engine.getTrade(id);
 
-        vm.warp(t.settleAt);
+        // The network fires at the schedule expiry; the block timestamp may lag it slightly.
+        (, uint256 expiry,,,,) = hss.scheduled(0);
+        vm.warp(expiry - 1);
+        assertGe(expiry - 1, t.settleAt, "margin keeps execution at or after settleAt");
         (bool ok,) = hss.fire(0);
         assertTrue(ok);
 

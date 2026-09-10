@@ -16,8 +16,8 @@
     "notices": "0.0.10459666"
   },
   "settlementEngine": {
-    "address": "0x36b7067ee318716b01adac233050b7346975bfc1",
-    "deployTx": "0x210e5939b5ea60e4a5a17428704650b6af3ac42cd25050fc4b5d236d40a3daad"
+    "address": "0x593D401cF80FAE8422a5aA113075cD2F464c297F",
+    "deployTx": "0x6e634c97b696f43830e72da25e1802eac2a4011e68b2f358a7600d29cfa03406"
   },
   "loanToken": {
     "name": "Meridian Holdings Term Loan B 2031 - Tranche A",
@@ -48,7 +48,77 @@
       "role": "seller",
       "evmAddress": "0xe4691b01dfbb6c3022c9c1b82521999bf9c2797e",
       "accountId": "0.0.10459771",
-      "usdKyc": true
+      "usdKyc": true,
+      "loanEligible": true
+    },
+    {
+      "name": "Halcyon Loan Fund IV",
+      "role": "buyer",
+      "evmAddress": "0x8ce724550b8608d6ade9d05f903f0657fc9f46c5",
+      "accountId": "0.0.10459773",
+      "usdKyc": true,
+      "loanEligible": false
+    },
+    {
+      "name": "Northgate Insurance",
+      "role": "lender",
+      "evmAddress": "0x2f513e82c82de59700a731a44c37835009b95391",
+      "accountId": "0.0.10459776",
+      "usdKyc": true,
+      "loanEligible": true
+    }
+  ],
+  "trades": [
+    {
+      "tradeId": "1",
+      "hash": "0x6b62bbb5cf96c3f5ad0056c30c9b4355eaa03caee9d5d01893ea94e9c8f03656",
+      "instruction": {
+        "loanToken": "0x1600f4a4609b9e9c48c432a16732da2634b7b1b7",
+        "cashToken": "0x00000000000000000000000000000000009f9a0c",
+        "buyer": "0x8cE724550B8608D6aDE9d05F903f0657fC9f46C5",
+        "seller": "0xE4691b01dfBb6C3022C9C1b82521999BF9C2797e",
+        "par": "5000000",
+        "cash": "4950000000000",
+        "settleAt": 1789044270,
+        "expiresAt": 1789047750,
+        "rfqRef": "0x5c5652e68ecc8ec6f7f8979421029a58ae1f4fa1913af5ff017b0de12b4bada9"
+      },
+      "scheduleAddress": "0x00000000000000000000000000000000009f9b72",
+      "createTx": "0xe5c194ae63251c416c911c38a2e78cc8d1cf6b182946b30c92af484e205e1dcd"
+    },
+    {
+      "tradeId": "1",
+      "hash": "0x154ec39a0e26fc927f92e3e5f3405874e398438648f77582f60cadb694bc9953",
+      "instruction": {
+        "loanToken": "0x1600f4a4609b9e9c48c432a16732da2634b7b1b7",
+        "cashToken": "0x00000000000000000000000000000000009f9a0c",
+        "buyer": "0x8cE724550B8608D6aDE9d05F903f0657fC9f46C5",
+        "seller": "0xE4691b01dfBb6C3022C9C1b82521999BF9C2797e",
+        "par": "5000000",
+        "cash": "4950000000000",
+        "settleAt": 1789044704,
+        "expiresAt": 1789048184,
+        "rfqRef": "0xd33e32c868ef56587e5f16e7009220e812803c5b5e2f1fe75512fd4270d60af2"
+      },
+      "scheduleAddress": "0x00000000000000000000000000000000009F9c05",
+      "createTx": "0x714e1854208c1925d5619c4b807592ea032a0cf86ae39323f5c46bc64359daa1"
+    },
+    {
+      "tradeId": "2",
+      "hash": "0xa3d8e5a8056f9be92caa5d923379fd77389efcff1a7a6faa0bb51d654d0f860f",
+      "instruction": {
+        "loanToken": "0x1600f4a4609b9e9c48c432a16732da2634b7b1b7",
+        "cashToken": "0x00000000000000000000000000000000009f9a0c",
+        "buyer": "0x8cE724550B8608D6aDE9d05F903f0657fC9f46C5",
+        "seller": "0xE4691b01dfBb6C3022C9C1b82521999BF9C2797e",
+        "par": "50000",
+        "cash": "49500000000",
+        "settleAt": 1789044864,
+        "expiresAt": 1789048374,
+        "rfqRef": "0x2950a5e6a880a02515d3ca344372ff2d244ed053c0ae9ff2f3eaf7cc989e29d0"
+      },
+      "scheduleAddress": "0x00000000000000000000000000000000009F9C3d",
+      "createTx": "0x4af9fed018076961da8e6fbb61d620a0f1b20e9262090c6bed4ae3962af4ddda"
     }
   ]
 }
