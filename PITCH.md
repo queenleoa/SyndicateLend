@@ -28,7 +28,6 @@ Tokenised private credit (fund tokens, tokenised notes, tokenised CLOs) wraps *e
 
 - Syndicated-loan institutions in India, including ICICI Bank, HDFC Bank and State Bank of India, have indicated interest to Fullmetal Finance in solutions that make syndicated loans easier to manage alongside its OTC derivatives stack. These are expressions of interest, not contracts; see [docs/validation.md](docs/validation.md).
 - Engineering validation on testnet changed the design twice: the Hedera scheduled-execution timing edge (now a schedule margin in the engine) and the ATS `forcedTransfer` versus `transferFrom` decision.
-- An automated submission review on 2026-09-12 produced nine findings; the changes made in response are logged in the validation record.
 
 ## What Hedera gains
 

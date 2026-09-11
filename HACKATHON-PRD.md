@@ -573,7 +573,7 @@ Feedback should be recorded as: observation, evidence, decision and resulting ch
 
 ### 9.4 Validation record
 
-[docs/validation.md](docs/validation.md) holds every recorded signal in the observation, evidence, decision and change format. At submission it contains: the Indian bank interest described in §1 and §2.6; an automated submission review on 2026-09-12 whose nine findings produced seven same-day changes; and seven evidence-driven engineering changes from testnet incidents. The practitioner-review target in §9.1 is not yet met, and the record says so.
+[docs/validation.md](docs/validation.md) holds every recorded signal in the observation, evidence, decision and change format. At submission it contains: the Indian bank interest described in §1 and §2.6, and seven evidence-driven engineering changes from testnet incidents. The practitioner-review target in §9.1 is not yet met, and the record says so.
 
 ### 9.5 Network impact
 
