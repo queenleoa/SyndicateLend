@@ -18,7 +18,11 @@
     "record-engine": "tsx src/record-engine.ts",
     "negative-test": "tsx src/negative-test.ts",
     "whitelist": "tsx src/whitelist-address.ts",
-    "settle-demo": "tsx src/settle-demo.ts"
+    "settle-demo": "tsx src/settle-demo.ts",
+    "pay-interest": "tsx src/pay-interest.ts",
+    "freeze-demo": "tsx src/freeze-demo.ts",
+    "reconcile": "tsx src/reconcile-register.ts",
+    "export-assignments": "tsx src/export-assignments.ts"
   },
   "dependencies": {
     "@hashgraph/asset-tokenization-sdk": "^8.0.0",

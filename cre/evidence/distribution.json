@@ -1,0 +1,30 @@
+{
+  "ranAt": 1789160032191,
+  "facilityId": "MHTLB-A",
+  "periodId": 2,
+  "commitment": "0xe1b1e10425bc2d429ef0aba293c0275b5c78c5bf595ccc849dfc52b29406338f",
+  "days": "30",
+  "distribution": [
+    {
+      "holder": "0x9c2e3a418d90d9c6fd7f3c417ec5730a3e65498b",
+      "amountUnits": "0"
+    },
+    {
+      "holder": "0xa6be8bbdc1175538349e745ff7ab4a0f9d5cb2fb",
+      "amountUnits": "604166666666"
+    },
+    {
+      "holder": "0xe4691b01dfbb6c3022c9c1b82521999bf9c2797e",
+      "amountUnits": "241666666666"
+    },
+    {
+      "holder": "0x8ce724550b8608d6ade9d05f903f0657fc9f46c5",
+      "amountUnits": "60416666666"
+    },
+    {
+      "holder": "0x2f513e82c82de59700a731a44c37835009b95391",
+      "amountUnits": "604166666666"
+    }
+  ],
+  "totalUnits": "1510416666664"
+}

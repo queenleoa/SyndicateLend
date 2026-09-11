@@ -1,5 +1,7 @@
 import { encodeAbiParameters, keccak256, parseAbiParameters, type Hex } from "viem";
 import { randomBytes } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 import { jsonStore } from "./store";
 import { publish, noticeTopicId } from "./hcs";
 import { readOrg } from "./org";
@@ -32,6 +34,20 @@ export function commitmentOf(n: Pick<Notice, "facilityId" | "periodId" | "period
 
 export const notices = jsonStore<{ notices: Notice[] }>("notices", { notices: [] });
 
+/**
+ * Register snapshot for an accrual period: every wallet currently eligible to hold the tranche.
+ * Privy desk wallets come from the institution directory; script-onboarded lenders come from the
+ * ops deployment record. The enclave reads each holder's par balance from the ATS security itself,
+ * so a listed wallet with no par simply accrues zero.
+ */
+export function registerSnapshot(): string[] {
+  const desks = readOrg().institutions.filter((i) => i.wallet).map((i) => i.wallet!.address.toLowerCase());
+  const file = path.resolve(process.cwd(), "../ops/deployments/testnet.json");
+  const dep = fs.existsSync(file) ? (JSON.parse(fs.readFileSync(file, "utf8")) as { institutions?: { evmAddress: string; loanEligible?: boolean }[] }) : {};
+  const lenders = (dep.institutions ?? []).filter((i) => i.loanEligible).map((i) => i.evmAddress.toLowerCase());
+  return [...new Set([...desks, ...lenders])];
+}
+
 export function findNotice(facilityId: string, periodId: number) {
   return notices.read().notices.find((n) => n.facilityId === facilityId && n.periodId === periodId) ?? null;
 }
@@ -40,7 +56,7 @@ export function findNotice(facilityId: string, periodId: number) {
 export async function createAndCommit(input: { facilityId: string; periodStart: number; periodEnd: number; rateBps: number; dayCountBasis?: number }) {
   const existing = notices.read().notices.filter((n) => n.facilityId === input.facilityId);
   const periodId = existing.length ? Math.max(...existing.map((n) => n.periodId)) + 1 : 1;
-  const holders = readOrg().institutions.filter((i) => i.wallet).map((i) => i.wallet!.address.toLowerCase());
+  const holders = registerSnapshot();
   const nonce = ("0x" + randomBytes(32).toString("hex")) as Hex;
   const base = { facilityId: input.facilityId, periodId, periodStart: input.periodStart, periodEnd: input.periodEnd, rateBps: input.rateBps, dayCountBasis: input.dayCountBasis ?? 360, nonce };
   const commitment = commitmentOf(base);

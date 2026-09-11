@@ -12,7 +12,13 @@
     "contracts:build": "cd contracts && forge build",
     "contracts:test": "cd contracts && forge test -vv",
     "demo:counterparty": "npm run --workspace web demo:counterparty --",
-    "demo:cre": "node cre/scripts/run-demo.mjs"
+    "demo:cre": "node cre/scripts/run-demo.mjs",
+    "demo:payout": "npm run --workspace ops pay-interest --",
+    "demo:controls": "npm run --workspace ops freeze-demo --",
+    "typecheck": "npm run --workspace ops typecheck && cd web && npx tsc --noEmit",
+    "lint": "npm run --workspace web lint",
+    "agent:reconcile": "npm run --workspace ops reconcile --",
+    "agent:export": "npm run --workspace ops export-assignments --"
   },
   "engines": {
     "node": ">=20"

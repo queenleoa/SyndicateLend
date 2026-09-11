@@ -1,0 +1,41 @@
+{
+  "ranAt": 1789160141909,
+  "facilityId": "MHTLB-A",
+  "periodId": 2,
+  "commitment": "0xe1b1e10425bc2d429ef0aba293c0275b5c78c5bf595ccc849dfc52b29406338f",
+  "mintTransactionId": "0.0.10457020@1789160129.193752727",
+  "transactionId": "0.0.10457020@1789160134.460654518",
+  "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789160134-460654518",
+  "totalPaidUnits": "906249999998",
+  "paid": [
+    {
+      "holder": "0xe4691b01dfbb6c3022c9c1b82521999bf9c2797e",
+      "accountId": "0.0.10459771",
+      "amountUnits": "241666666666"
+    },
+    {
+      "holder": "0x8ce724550b8608d6ade9d05f903f0657fc9f46c5",
+      "accountId": "0.0.10459773",
+      "amountUnits": "60416666666"
+    },
+    {
+      "holder": "0x2f513e82c82de59700a731a44c37835009b95391",
+      "accountId": "0.0.10459776",
+      "amountUnits": "604166666666"
+    }
+  ],
+  "skipped": [
+    {
+      "holder": "0x9c2e3a418d90d9c6fd7f3c417ec5730a3e65498b",
+      "reason": "no par in the register snapshot"
+    },
+    {
+      "holder": "0xa6be8bbdc1175538349e745ff7ab4a0f9d5cb2fb",
+      "reason": "mock USD not associated (desk quorum has not executed the association intent)"
+    }
+  ],
+  "hcs": {
+    "sequence": 3,
+    "transactionId": "0.0.10457020@1789160136.445344678"
+  }
+}
