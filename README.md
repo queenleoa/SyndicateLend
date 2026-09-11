@@ -112,7 +112,17 @@ npx tsx scripts/provision.mts <id> "<name>" <trader@> <compliance@> <pm@>   # pr
 npx tsx scripts/intent-test.mts <id>          # create a test intent and print it
 ```
 
+### RFQ market and settlement between Privy desks (Day 3)
+
+- RFQ, quote, acceptance, instruction, approval and settlement events are JSON messages on the HCS RFQ topic; the blotter is a read model folded from the topic.
+- Accepting a quote creates the settlement instruction on the engine (venue key) and proposes one approval intent to each desk. When a desk's quorum executes, the venue broadcasts the signed `approve` to Hedera; the second approval schedules the atomic settlement.
+- Desk wallets join Hedera through `web/scripts/hedera-onboard.mts` (or the admin page): operator steps (fund, eligibility, allocate, mock-USD KYC and cash) and desk-signed steps as quorum intents (mock-USD association via HIP-719, standing authorisations to the engine).
+
 Dashboard settings that complete the B2B setup (allowlist, MFA, login methods, app clients, webhooks) are listed in [docs/privy-dashboard.md](docs/privy-dashboard.md). Provisioned institutions are recorded in `web/data/org.json`.
+
+## Confidential interest calculation with Chainlink CRE (Day 4)
+
+`cre/interest-accrual` is a CRE Confidential Workflow (TypeScript, `handlerInTee`). The agent commits a salted hash of its private rate notice to the HCS notices topic; inside the enclave the workflow fetches the notice with a Vault DON secret, verifies it against the commitment, reads holder balances from the ATS register, and reports only the per-holder distribution. A tampered notice aborts the run. See [cre/README.md](cre/README.md).
 
 ## Settlement design notes
 

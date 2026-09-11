@@ -1,0 +1,10 @@
+{
+  "schedule": "0 0 9 * * *",
+  "facilityId": "MHTLB-A",
+  "mirrorUrl": "https://testnet.mirrornode.hedera.com",
+  "noticeTopicId": "0.0.10459666",
+  "loanToken": "0x1600f4a4609b9e9c48c432a16732da2634b7b1b7",
+  "noticeUrl": "http://localhost:3000/api/agent/notice",
+  "secretId": "API_TOKEN",
+  "tamper": true
+}
