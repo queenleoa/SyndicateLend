@@ -53,5 +53,8 @@ Thumbs.db
 logs/
 
 # Institution directory contains member emails and Privy ids; provision locally via the admin page or scripts/provision.mts
-web/data/org.json
+web/data/
 web/data/privy-events.jsonl
+
+# CRE build artefacts
+.cre_build_tmp.js
