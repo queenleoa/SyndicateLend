@@ -1,66 +1,17 @@
-## Foundry
+# SyndicateLend contracts
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+Foundry project for `SettlementEngine`, the atomic delivery-versus-payment contract for tokenised loan interests.
 
-Foundry consists of:
+- `src/SettlementEngine.sol`: trade instructions, hash-bound approvals from both desks, HSS scheduling from inside the contract (HIP-1215 `scheduleCall`, the engine pays), `settle` running both legs in an external self-call so any revert rolls back both and is stored on the trade, reissue and cancel paths, reentrancy guard.
+- `src/interfaces/IHederaScheduleService.sol`: the Hedera Schedule Service system-contract interface.
+- `test/SettlementEngine.t.sol` with `test/mocks/`: ATS, HTS and HSS doubles. 19 tests cover the happy path, approval binding, eligibility revocation, cash-leg rollback, pause, expiry, replay, reissue and cancel.
+- `script/DeploySettlementEngine.s.sol`: deployment (funds the engine with HBAR for its scheduled executions).
 
-- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
-- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
-- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
-- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
-
-## Documentation
-
-https://book.getfoundry.sh/
-
-## Usage
-
-### Build
-
-```shell
-$ forge build
+```bash
+forge install foundry-rs/forge-std OpenZeppelin/openzeppelin-contracts@v5.1.0 --no-git   # lib/ is not committed
+forge test -vv
 ```
 
-### Test
+Deployed on Hedera testnet at `0.0.10460134` / `0x593D401cF80FAE8422a5aA113075cD2F464c297F` (Sourcify exact match). Deployment and verification commands are in the [root README](../README.md).
 
-```shell
-$ forge test
-```
-
-### Format
-
-```shell
-$ forge fmt
-```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+Design note: the engine moves the loan token with `transferFrom`, not ATS `forcedTransfer`, because the forced path skips compliance and would defeat the guarantee that a buyer revoked before execution causes a full revert.

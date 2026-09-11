@@ -1,14 +1,33 @@
 # SyndicateLend
 
-Private tokenised register and RFQ secondary market for syndicated-loan interests on Hedera.
+[![ci](https://github.com/queenleoa/SyndicateLend/actions/workflows/ci.yml/badge.svg)](https://github.com/queenleoa/SyndicateLend/actions/workflows/ci.yml)
+
+Private tokenised register and RFQ secondary market for syndicated-loan interests on Hedera. Built by the founder of [Fullmetal Finance](https://fullmetal.finance) (collateral and settlement-efficiency products for institutional finance) for the Hedera hackathon, ATS track.
+
+**Read first:** [PITCH.md](PITCH.md) (problem, solution, validation, ask) · [HACKATHON-PRD.md](HACKATHON-PRD.md) (full spec, status at submission in §8.5) · [docs/validation.md](docs/validation.md) · [docs/lean-canvas.md](docs/lean-canvas.md)
 
 - **Register:** one Asset Tokenization Studio (ATS) security per term-loan tranche (bond-type diamond, whitelist control list, internal KYC). 1 token = US$1 par.
 - **Payment leg:** permissioned HTS mock-USD token (KYC, freeze, pause keys held by the administrative agent).
 - **Settlement:** `SettlementEngine` exchanges loan tokens and mock USD atomically in one contract call, scheduled through the Hedera Schedule Service (HIP-1215 `scheduleCall`). Any compliance, balance or allowance failure reverts both legs and records the reason on-chain.
 - **Approvals:** Privy quorum-controlled desk wallets (Day 3).
-- **Interest:** agent commits a salted hash of the private rate notice to HCS; a Chainlink CRE confidential workflow verifies it in a TEE and computes accrual (Day 4).
+- **Interest:** agent commits a salted hash of the private rate notice to HCS; a Chainlink CRE confidential workflow verifies it in a TEE, computes accrual and releases only the distribution; the paying agent settles it in one atomic HTS transfer (Day 4).
 
-Full product spec: [HACKATHON-PRD.md](HACKATHON-PRD.md).
+## What is new here
+
+Tokenised private credit (Maple, Centrifuge, Figure, tokenised CLOs) wraps *exposure* to loans in a token; the loan still settles the old way behind the wrapper. SyndicateLend tokenises the **assignment itself** on the agent's register and makes its settlement atomic and compliance-aware. Specifically:
+
+1. **In-contract scheduling, contract as payer.** The engine calls HSS `scheduleCall` (HIP-1215) itself on the second approval and funds the scheduled execution. No keeper.
+2. **Revocation triggers a full revert at execution.** Compliance can revoke a buyer after both approvals; the scheduled settlement fails as a whole with the ATS reason stored on-chain. `transferFrom`, not `forcedTransfer`, so the check cannot be bypassed.
+3. **Commitment-verified confidential accrual.** Salted hash on HCS; Chainlink CRE verifies the private notice in a TEE and releases only per-holder amounts; a tampered notice aborts.
+4. **User-bound institutional quorum.** Privy 2-of-3 key quorums own each desk wallet under a policy limited to the venue contracts; the app secret alone cannot move assets.
+5. **The market's own workflow.** RFQ, not an order book; an agent-centred register, not a fund wrapper.
+6. **Integration with the agent's book, not around it.** A register-reconciliation adapter that ingests the agent's own export and attests only a report hash on HCS, and an LSTA-vocabulary assignment export, so the shadow-register pilot needs no re-keying. See "Integration hooks" below.
+
+The comparison table is in [HACKATHON-PRD.md §2.5](HACKATHON-PRD.md#25-why-this-is-more-than-tokenised-private-credit).
+
+## Judging without a Privy login
+
+The browser flow needs Privy institutions provisioned locally (`web/data/` is gitignored because it holds member emails). Every on-chain claim below is reproducible without it from the `ops/` scripts against the committed ids in `ops/deployments/testnet.json`, and every artefact links to HashScan. CI runs the 19 Foundry tests, `tsc --noEmit` for ops and web, and eslint on each push.
 
 ## Live on Hedera testnet (Day 1, 2026-09-10)
 
@@ -39,8 +58,11 @@ Three eligible lenders hold the tranche (seller 150m par, holder 100m par, buyer
 | `contracts/` | Foundry project: `SettlementEngine.sol`, HSS interface, tests with ATS/HTS/HSS doubles |
 | `ops/` | Administrative-agent scripts (ATS SDK + Hedera SDK): issuance, KYC, allocation, mock USD, HCS topics |
 | `ops/deployments/testnet.json` | Addresses and ids written by the scripts (committed so judges can inspect) |
+| `ops/samples/`, `ops/reports/`, `ops/exports/` | Agent register export sample, reconciliation reports and assignment exports produced by the integration adapters |
 | `web/` | Institutional web app (Day 3) |
-| `cre/` | Chainlink CRE confidential workflow (Day 4) |
+| `cre/` | Chainlink CRE confidential workflow (Day 4); `cre/evidence/` holds the sanitised simulation results, released distribution and payout receipt |
+| `docs/` | Validation record, Lean Canvas, Privy dashboard settings |
+| `.github/workflows/ci.yml` | forge test, typecheck and lint on every push |
 
 ## Five-minute demo mode
 
@@ -147,6 +169,32 @@ Dashboard settings that complete the B2B setup (allowlist, MFA, login methods, a
 
 `cre/interest-accrual` is a CRE Confidential Workflow (TypeScript, `handlerInTee`). The agent commits a salted hash of its private rate notice to the HCS notices topic; inside the enclave the workflow fetches the notice with a Vault DON secret, verifies it against the commitment, reads holder balances from the ATS register, and reports only the per-holder distribution. A tampered notice aborts the run. See [cre/README.md](cre/README.md).
 
+### Interest payout (FR-12)
+
+`npm run demo:cre` now also captures the workflow's *released* output (commitment, period, holders, amounts; no rate, basis or nonce) in `cre/evidence/distribution.json`. `npm run demo:payout` (`ops/src/pay-interest.ts`) checks that commitment against the HCS notices topic, checks each holder can receive mock USD, mints the period's interest to the paying agent (the borrower's payment, modelled on the test token), credits every eligible holder in **one atomic HTS transfer**, and publishes an `interest-payout` receipt on the notices topic. Run on testnet for period 2 (7.25%, 30 days, five-holder snapshot):
+
+| Step | Evidence |
+|---|---|
+| Commitment for period 2 | [HCS #2 on 0.0.10459666](https://hashscan.io/testnet/topic/0.0.10459666), commitment `0xe1b1…338f` |
+| CRE valid run | 5 holders, 30 days, total 1,510,416.67 mUSD computed; `cre/evidence/distribution.json` |
+| CRE tamper run | aborted: `notice does not match the committed hash for period 2` |
+| Mint to paying agent | [0.0.10457020-1789160129-193752727](https://hashscan.io/testnet/transaction/0.0.10457020-1789160129-193752727) |
+| Atomic payout, 3 holders, 906,249.99 mUSD | [0.0.10457020-1789160134-460654518](https://hashscan.io/testnet/transaction/0.0.10457020-1789160134-460654518): Meridian 241,666.66, Halcyon 60,416.66, Northgate 604,166.66 |
+| Payout receipt | [HCS #3 on 0.0.10459666](https://hashscan.io/testnet/topic/0.0.10459666), lists paid and skipped holders |
+
+Two holders were skipped with the reason on the receipt: the Halcyon Privy desk wallet holds no par, and the Meridian Privy desk wallet's mock-USD association intent has not been executed by its quorum yet. This is the PRD's disclosed fallback (batched HTS transfers signed by the paying agent) rather than an on-chain `InterestDistributor` consuming a DON-signed report. In production the intended replacement is ATS corporate actions and Mass Payout driven by the DON-signed distribution, which keeps the payout inside the security's own lifecycle controls.
+
+### Lifecycle controls (FR-15)
+
+`npm run demo:controls` (`ops/src/freeze-demo.ts`) exercises the controls on both legs with real failing transactions, then restores them:
+
+| Control | Result | Evidence |
+|---|---|---|
+| HTS freeze on the buyer's mock USD | transfer blocked `ACCOUNT_FROZEN_FOR_TOKEN` | [0.0.10457020-1789160141-934481668](https://hashscan.io/testnet/transaction/0.0.10457020-1789160141-934481668) |
+| HTS pause on mock USD | transfer blocked `TOKEN_IS_PAUSED` | [0.0.10457020-1789160146-977861526](https://hashscan.io/testnet/transaction/0.0.10457020-1789160146-977861526) |
+| Controls restored | transfer succeeds | [0.0.10457020-1789160149-779324053](https://hashscan.io/testnet/transaction/0.0.10457020-1789160149-779324053) |
+| ATS pause on the loan token | seller transfer reverted | [0xcb197f…7092](https://hashscan.io/testnet/transaction/0xcb197f185623af441dda00ca2d87d0427ea8f962c128b4968a3406a7cf917092) |
+
 ## Settlement design notes
 
 - Each desk approves a hash of the full instruction (tokens, parties, par, cash, dates, RFQ reference). Both hashes must match.
@@ -154,6 +202,72 @@ Dashboard settings that complete the B2B setup (allowlist, MFA, login methods, a
 - `settle` runs both legs inside an external self-call under try/catch: a revert in either leg (ATS eligibility, HTS KYC, allowance, balance, pause) rolls back both and stores the revert data in the trade as `Failed`, so operations can correct and reissue.
 - The engine uses `transferFrom` on the ATS token deliberately. ATS also offers `forcedTransfer` for agents, but that path skips compliance checks, which would defeat the "revoked buyer causes a full revert" guarantee.
 
+## Integration hooks for the agent's systems
+
+The adoption path is a shadow register beside the agent's books, integrated with what the agent already runs rather than re-keyed. Two adapters implement that:
+
+| Adapter | What it does | Evidence |
+|---|---|---|
+| `npm run agent:reconcile -- --attest` (`ops/src/reconcile-register.ts`) | Takes the agent's lender-register export as CSV (`ops/samples/agent-register-MHTLB-A.csv`, the shape a Loan IQ book or a Versana feed produces), resolves each lender to its wallet, reads the ATS balance and marks every row AGREES or BREAK with the agreement rate (the pilot's headline metric, PRD §9.2). Only a SHA-256 of the report is attested on HCS; positions stay with the agent. | Sample run: 2/4 agree, two equal-and-opposite breaks of 5,000,000 par flagged as an assignment settled on the register but not yet processed in the agent's book. Report in `ops/reports/`; hash attested at [HCS #4 on 0.0.10459666](https://hashscan.io/testnet/topic/0.0.10459666) |
+| `npm run agent:export` (`ops/src/export-assignments.ts`) | Reads every trade from the engine and writes assignment records in the LSTA assignment-agreement vocabulary (assignor, assignee, assigned principal, purchase price, trade and settlement dates, settlement transaction) as CSV and JSON for the agent's loan system or a ClearPar-style workflow. | `ops/exports/assignments-MHTLB-A.csv`: trade 1 settled, trade 2 failed with the on-chain reason |
+
+Together they close the loop the reconciliation points at: a break on the register is explained by an exported assignment the agent has not processed yet.
+
+## Network impact
+
+Every institution is a Hedera account, every trade is a set of HCS messages and contract executions, and every accrual period is a set of consensus transactions. Mirror-node reads (blotter, portfolio, enclave snapshot) are not counted.
+
+| Unit | Consensus transactions | Detail |
+|---|---|---|
+| Onboard one institution | 1 account, ~8 transactions | alias funding, whitelist, internal KYC, mock-USD KYC, association (HIP-719), two standing allowances, cash funding |
+| One secondary trade | 7 HCS messages, 4 contract executions, 1 schedule | rfq, quote, accept, instruction, two approvals, settlement receipt; `createTrade`, two `approve`, network-executed `settle` |
+| One interest period | 2 HCS messages, 2 token transactions | commitment, payout receipt; mint, one batched HTS transfer to all holders |
+
+Worked example for one agent's book of 200 facilities with 20 lenders each, 4 secondary trades per facility per year and monthly interest: up to 4,000 institutional accounts once, then about 9,600 trade transactions and 9,600 accrual transactions per year. Scaling to the roughly 1,500 facilities Versana reports keeps the same shape at about 7.5× those numbers.
+
+| Case | Transactions per year | Average TPS | Network fees per year at public fee-schedule prices |
+|---|---|---|---|
+| One agent, 200 facilities | ~19,200 | ~0.0006 | on the order of US$200 |
+| Versana-scale, 1,500 facilities | ~144,000 | ~0.005 | on the order of US$1,300 |
+
+The throughput is small by design: this is institutional B2B. Fee estimates use HCS submit US$0.0001, HTS transfer US$0.001, schedule create US$0.01 and about US$0.05 per contract execution, and should be read as orders of magnitude.
+
+### Value, not throughput
+
+Institutional flow is measured in value per transaction and in what the on-register asset can then be used for, not in transactions per second. Same worked example, with two further labelled assumptions: an average facility of US$600m (Versana's roughly US$900bn across about 1,500 facilities) and an average trade of US$5m par (the demo trade size).
+
+| Measure | One agent, 200 facilities | Versana-scale, 1,500 facilities |
+|---|---|---|
+| Loan par held on the ATS register | US$120bn | US$900bn |
+| Secondary notional settled through the engine per year | US$4bn | US$30bn |
+| Interest paid through HTS payouts per year (at 7.25%, the demo rate) | US$8.7bn | US$65bn |
+| Value moved per settlement or payout transaction (800 settlements and 2,400 payouts; 6,000 and 18,000 at scale) | about US$4m | about US$4m |
+| Payment-token balance needed on the network on a monthly interest date | about US$725m | about US$5.4bn |
+
+Three consequences for the network:
+
+1. **Each transaction is a large-value transfer.** One settlement moves US$5m of par against US$4.95m of cash; one payout moves a month's interest for a whole facility, about US$3.6m at the assumed size. Thousands of these a year are worth more to a ledger than millions of small transfers.
+2. **The cash leg pulls institutional money onto the network.** Atomic DvP requires the purchase price and every interest payment to sit in a regulated stablecoin or tokenised deposit on the same ledger. Interest alone means hundreds of millions of dollars of payment-token balances on each monthly payment date.
+3. **On-register loan positions become reusable collateral.** Today a loan interest is close to unusable as collateral because its transfer takes weeks and its title sits in an agent's spreadsheet. Once it is a transferable ATS position with atomic settlement and eligibility enforced by the token, the same position can be pledged for secured funding or as margin for OTC derivatives on the same ledger, which is Fullmetal Finance's core business. Every dollar of par on the register is a dollar of collateral that did not exist on-chain before, and the collateral pool for a HashSphere deployment is measured in the hundreds of billions before a single retail account is opened.
+
+That is why the network's gain here is institutional accounts, institutional cash and institutional collateral with the same transaction shape on HashSphere, rather than TPS.
+
+### Extension to retail accounts
+
+The same register extends to many more accounts without new mechanisms. Once a tranche is an ATS position with atomic settlement and confidential accrual, a regulated feeder (fund units or participations issued against the register, for qualified investors and, where a jurisdiction permits, retail investors) can hold a lender position and pass it through to its own holders on the same ledger:
+
+- each feeder holder is an ATS-whitelisted, KYC-gated position, exactly as the five demo lenders are;
+- the accrual workflow already computes a per-holder distribution from the register snapshot; a feeder simply makes the holder list longer, and ATS Mass Payout is the intended production path;
+- the RFQ market and the engine are unchanged, because the feeder is one lender on the register.
+
+Labelled scenario, not part of the build: if one in ten facilities at Versana scale has a feeder with 5,000 holders, that is 150 feeders, 750,000 KYC-gated accounts, and 750,000 HTS interest transfers a month (9m a year, about 0.3 TPS sustained with monthly peaks). If a feeder holds a US$30m position (5% of the US$600m facility), each holder's monthly transfer is about US$36 at 7.25%; at a US$120m position it is about US$145. Account creation and throughput then grow with holders rather than with facilities, on top of the institutional collateral pool above. India is the natural first case: the same banks that expressed interest run large retail franchises, and SLMA's mandate is to widen participation in the loan market.
+
 ## Disclosure
 
-Testnet activity is a technical demonstration with synthetic data. Tokens do not constitute legal title to a loan interest. Fallbacks used in the demo are listed here as they are adopted.
+Testnet activity is a technical demonstration with synthetic data. Tokens do not constitute legal title to a loan interest. Fallbacks adopted in the demo:
+
+- **CRE** runs in the local simulator, not a deployed enclave (Confidential Workflows is in private beta). The UI reads sanitised evidence files that the demo scripts write.
+- **Interest payout** is a paying-agent batch of HTS transfers driven by the workflow's released output, not an on-chain distributor consuming a DON-signed report.
+- **Persistence** in the web app is a JSON file store.
+- **Two Privy desk wallets** in the period-2 snapshot have not executed their mock-USD association intent, so they were skipped by the payout with the reason recorded on HCS.
+- **RFQ payloads** are plain text on the public topic (FR-16 not done).

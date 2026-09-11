@@ -22,7 +22,7 @@ export default function Landing() {
 
       <section className={s.hero} aria-labelledby="headline">
         <div className={s.eyebrow}>Institutional credit. Connected.</div>
-        <h1 id="headline">The only platform you need to<br className={s.desktopBreak} /> manage and trade <span>syndicated loans</span></h1>
+        <h1 id="headline">The register, RFQ market and<br className={s.desktopBreak} /> settlement layer for <span>syndicated loans</span></h1>
         <h2>Settle in seconds, not weeks.</h2>
         <p>Tokenise lender positions. Trade through RFQs. Approve as an institution.<br className={s.desktopBreak} /> Exchange loan interests and cash together, with confidential interest calculations.</p>
         <button className={s.login} disabled={!ready} onClick={() => login()}>Log in <span aria-hidden="true">↗</span></button>

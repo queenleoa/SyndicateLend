@@ -8,7 +8,7 @@
 
 **Network:** Hedera testnet
 
-**Team:** Solo founder
+**Team:** Solo founder (Adrija, founder of Fullmetal Finance)
 
 **Build window:** Five days
 
@@ -25,6 +25,14 @@ Yet a loan interest is not transferred like a listed security. It is a contractu
 This delay creates avoidable counterparty exposure, traps capital and generates reconciliation work. The market even uses delayed-compensation rules to allocate interest and cost of carry when settlement misses the expected date.
 
 I am building **SyndicateLend** to address this settlement problem. It is a private, tokenised register and request-for-quote (RFQ) exchange for syndicated loan interests. Hedera Asset Tokenization Studio (ATS) represents eligible ownership, a settlement contract exchanges the loan token and payment atomically, Privy applies institutional approval controls, and Chainlink CRE calculates interest from confidential loan terms.
+
+### Founder and origin
+
+I am the founder of **Fullmetal Finance**, which builds collateral and settlement-efficiency products for institutional finance, including a full-stack OTC derivatives solution covering trade capture, collateral, margining and settlement. SyndicateLend applies the same settlement discipline to syndicated loans.
+
+The idea did not come from a tokenisation trend. In conversations about Fullmetal's OTC derivatives stack, syndicated-loan institutions in India, including **ICICI Bank, HDFC Bank and State Bank of India**, indicated interest in solutions that make syndicated loans easier to manage alongside the derivatives stack. Those signals are recorded in [docs/validation.md](docs/validation.md). They are expressions of interest, not contracts, and this document does not present them as customers.
+
+A one-page pitch is in [PITCH.md](PITCH.md) and a Lean Canvas in [docs/lean-canvas.md](docs/lean-canvas.md).
 
 ### Product thesis
 
@@ -95,6 +103,27 @@ The problem is therefore not that the market lacks software. ClearPar coordinate
 | Insurer or pension investor | Hold and occasionally trade loans | Repeated onboarding and limited position visibility |
 | Auditor or regulator | Reconstruct ownership and transaction history | Evidence is distributed across several systems |
 
+### 2.5 Why this is more than tokenised private credit
+
+Tokenised private credit already exists: Maple and Centrifuge tokenise pool or fund exposure, Figure tokenises consumer-loan assets and their financing, and Galaxy's tokenised CLO puts a securitised note on-chain. Judges should not read SyndicateLend as another instance of that category. Those products tokenise a **wrapper around loan exposure**; the underlying loan interest still changes hands through the agent's register, assignment documents and a separate cash rail. SyndicateLend tokenises the **assignment itself** at the register level and makes the settlement of that assignment atomic and compliance-aware.
+
+| Dimension | Tokenised private credit and CLO tokens | SyndicateLend |
+|---|---|---|
+| What the token represents | A share of a pool, fund or securitised note | A defined par amount of one tranche on the facility's lender register |
+| Who maintains the record | The issuer of the wrapper | The administrative agent, the party that already owns the register |
+| Secondary transfer | Token move; the loan behind it is untouched | The assignment is the transfer; the agent's register is the token balance |
+| Eligibility | Checked at issuance or by an allow-list | Re-checked inside the settlement execution; revocation causes a full revert |
+| Cash leg | Off-chain, or a stablecoin transfer with no linkage | Same transaction as the asset leg; both succeed or both revert |
+| Institutional authority | One wallet, one signer | User-bound quorum wallets; the venue cannot move a desk's assets |
+| Interest | Computed by the issuer, published or not | Computed from confidential terms in a TEE against a public commitment; only the distribution is released |
+| Timing | Immediate, or off-platform | Scheduled by the network at the agreed settlement date from inside the contract |
+
+The result is a product an administrative agent can run as a shadow register beside its books, which is the only realistic adoption path for an asset whose legal transfer is governed by a credit agreement.
+
+### 2.6 India as a second market
+
+Fullmetal Finance's institutional relationships are concentrated in India, where large corporate borrowing is dominated by consortium and multiple-banking arrangements led by the same banks that expressed interest above. Secondary trading of those loans is nascent by comparison with the US market. The Secondary Loan Market Association (SLMA) was incorporated in August 2020 by ten banks, including SBI, ICICI Bank and HDFC Bank, on the recommendation of a Reserve Bank of India task force, as a self-regulatory body to develop that market through standard documents and trading rules. A settlement layer that starts from the lead bank's register, rather than from a fund wrapper, fits that market's structure. Market-size figures for India are deliberately absent from this document until they can be cited from SLMA or Reserve Bank of India data.
+
 ---
 
 ## 3. Product Definition
@@ -138,6 +167,17 @@ Hedera is suited to the prototype because it provides:
 - Expose a receipt for every material action.
 - Make privacy a deployment requirement, not an afterthought.
 - Present testnet activity as a technical demonstration, not as a legally effective loan transfer.
+
+### 3.5 What is new here
+
+Five things in this build are, to my knowledge, not found together on Hedera or in the cross-chain comparables:
+
+1. **In-contract scheduling with the contract as payer.** `SettlementEngine` calls the Hedera Schedule Service system contract (HIP-1215 `scheduleCall`) itself when the second approval lands, and funds the scheduled execution from its own balance. No off-chain scheduler or keeper.
+2. **Revocation triggers a full revert at execution time.** The compliance officer can revoke a buyer after both desks have approved; the scheduled settlement then fails as a whole, with the ATS revert reason stored on the trade. The engine uses `transferFrom` rather than ATS `forcedTransfer` precisely so that this check cannot be bypassed.
+3. **Commitment-verified confidential accrual.** The agent commits a salted hash of the private rate notice to HCS; a Chainlink CRE confidential workflow verifies the notice inside a TEE and releases only the per-holder distribution. A tampered notice aborts before any output leaves the enclave.
+4. **User-bound institutional quorum.** Each desk wallet is owned by a Privy key quorum of three named staff with a 2-of-3 policy limited to the venue contracts. The application secret alone cannot move a desk's assets.
+5. **The market's own workflow.** RFQ rather than an order book, an agent-centred register rather than a fund wrapper, and settlement receipts that map to the LSTA trade lifecycle desks already run.
+6. **Integration hooks into the agent's existing systems.** A reconciliation adapter ingests the agent's own register export (the shape a Loan IQ book or a Versana feed produces), marks each lender AGREES or BREAK against the ATS register, computes the agreement rate and attests only a hash of the report on HCS; an assignment exporter turns settled trades into LSTA-vocabulary records for the agent's loan system or a ClearPar-style workflow. The shadow-register pilot therefore requires no re-keying on either side.
 
 ---
 
@@ -476,6 +516,21 @@ The MVP is complete only when a judge can:
 | Privy B2B workflow | Role-based 2-of-3 approval before an institutional wallet action |
 | Product execution | A browser-based, end-to-end flow with positive and negative test cases and inspectable receipts |
 
+### 8.5 Status at submission (2026-09-12)
+
+| Requirement | Status | Evidence |
+|---|---|---|
+| FR-01 to FR-04, FR-06 to FR-09 | Done on testnet | README "Live on Hedera testnet" and "Settlement evidence" |
+| FR-05 Privy 2-of-3 | Done | Provisioned quorums and policies; one signature is insufficient in the app |
+| FR-10, FR-11 | Done in the local CRE simulator | `cre/evidence/latest.json`; live enclave deployment needs Confidential Workflows private beta |
+| FR-12 Interest payout | Done via the disclosed fallback | Paying agent pays the CRE-released distribution in one atomic HTS transfer; README "Interest payout" |
+| FR-13, FR-14 | Done | Web app pages and HashScan receipts |
+| FR-15 Freeze and pause | Done | `npm run demo:controls`; README "Lifecycle controls" |
+| FR-16 Encrypted RFQ payloads | Not done | RFQ messages are synthetic plain text on the public topic |
+| Shadow-register integration (§10.3) | Done | Register reconciliation with HCS attestation and LSTA-style assignment export; README "Integration hooks" |
+
+Two of the five holders in the period-2 snapshot are Privy desk wallets whose mock-USD association intent has not yet been executed by their quorum; the payout script skips them with the reason recorded on the HCS receipt. This is a demo-provisioning gap, not a design limitation.
+
 ---
 
 ## 9. Validation and Success Measures
@@ -516,6 +571,18 @@ During the hackathon, three groups should review the product:
 
 Feedback should be recorded as: observation, evidence, decision and resulting change. Placeholder endorsements must not appear in the pitch.
 
+### 9.4 Validation record
+
+[docs/validation.md](docs/validation.md) holds every recorded signal in the observation, evidence, decision and change format. At submission it contains: the Indian bank interest described in §1 and §2.6; an automated submission review on 2026-09-12 whose nine findings produced seven same-day changes; and seven evidence-driven engineering changes from testnet incidents. The practitioner-review target in §9.1 is not yet met, and the record says so.
+
+### 9.5 Network impact
+
+Each institution becomes a Hedera account, every trade produces HCS messages and scheduled contract executions, and every accrual period produces consensus transactions. The README's "Network impact" section gives the per-institution, per-trade and per-period transaction counts and a worked example for one agent's book. A HashSphere deployment keeps the same transaction shape.
+
+The measure that matters for institutional flow is value, not throughput. On the README's assumptions, one agent's 200-facility book puts US$120bn of loan par on the register, settles US$4bn of secondary notional and pays US$8.7bn of interest through the network per year, at roughly US$4m of value per settlement or payout transaction; at Versana scale those figures are US$900bn, US$30bn and US$65bn. The cash leg requires that money to sit in a regulated payment token on the same ledger, and an on-register loan position with atomic settlement becomes collateral that can be pledged for secured funding or OTC derivatives margin on that ledger, which is Fullmetal Finance's existing business. That collateral pool is orders of magnitude larger than any retail flow a network can attract, and it arrives through a few thousand institutional accounts.
+
+The register also extends to retail-scale account counts without new mechanisms: a regulated feeder holding one lender position can pass it through to its own KYC-gated holders on the same ATS register, and the accrual workflow and payout already operate on an arbitrary holder list. The README gives a labelled scenario (one in ten facilities with a 5,000-holder feeder) of about 750,000 accounts and 9m interest transfers a year. This is an extension path, not part of the five-day build.
+
 ---
 
 ## 10. Business Model and Adoption
@@ -523,6 +590,8 @@ Feedback should be recorded as: observation, evidence, decision and resulting ch
 ### 10.1 Initial customer
 
 The initial buyer is a CLO manager or credit fund with frequent secondary trading and a loan-operations team that bears the cost of delayed settlement. The administrative agent is the essential system partner because it controls the official lender register.
+
+Fullmetal Finance's route to that partner runs through its existing OTC derivatives relationships: the collateral and settlement desks that use the derivatives stack sit next to the loan-operations and agency desks that SyndicateLend serves. The Indian banks that indicated interest are both lead banks on consortium facilities and derivatives counterparties, so one relationship covers both roles.
 
 ### 10.2 Commercial model
 
@@ -539,7 +608,7 @@ Pricing is not validated in the hackathon and should not be presented as establi
 
 1. Run a shadow-register pilot with one buy-side institution and one administrative agent.
 2. Compare the tokenised workflow with the same real-world operational process.
-3. Integrate with existing sources such as agent-bank systems, ClearPar or Versana rather than asking users to re-enter data.
+3. Integrate with existing sources such as agent-bank systems, ClearPar or Versana rather than asking users to re-enter data. The reconciliation and assignment-export adapters in `ops/` are the first two such hooks and run against the testnet register today.
 4. Establish the legal basis for the digital register on one facility.
 5. Expand across facilities administered by the same agent.
 
@@ -553,6 +622,24 @@ Pricing is not validated in the hackathon and should not be presented as establi
 | Tokenised CLOs | On-chain issuance of securitised credit exposure | Tokenisation and transfer of the underlying syndicated loan interest |
 
 SyndicateLend should be positioned as a settlement layer that can integrate with these systems, not as a claim that their functions are unnecessary.
+
+### 10.5 Lean Canvas
+
+The nine-box canvas is in [docs/lean-canvas.md](docs/lean-canvas.md).
+
+### 10.6 First pilot target and what it costs the customer
+
+**Profile.** The agency desk of one Indian private-sector bank acting as lead bank on one term-loan facility with three to six lenders, run as a shadow register for one quarter. A CLO manager or credit fund is the second party in the US variant of the same pilot.
+
+**What the customer commits.**
+
+- A read-only feed of the lender register for the pilot facility (a spreadsheet export is sufficient on day one).
+- Two operations staff for roughly two hours a week to enter trades in parallel and review the daily reconciliation.
+- Sign-off from compliance on synthetic-data use during the shadow phase; no legal amendment until the register agrees with the books for a full quarter.
+
+**What SyndicateLend provides.** A hosted private deployment (HashSphere or an equivalent permissioned Hedera network), institution provisioning, the daily reconciliation report and the pilot metrics in §9.2. No integration with the bank's core loan system is required for the shadow phase.
+
+**Pricing hypothesis.** A flat pilot fee that converts to per-trade settlement and per-facility register fees on migration. The number is not stated here because it has not been tested with a buyer.
 
 ---
 
@@ -592,6 +679,8 @@ The five-minute demo should tell one story:
 7. The agent publishes a hash of a private interest notice. CRE verifies the notice confidentially, calculates the distribution and rejects a modified notice.
 8. Holders receive mock USD, and the application links the complete trail to Hedera records.
 
+The pitch narrative (problem, solution, what is new, validation, business model, ask) is written out in [PITCH.md](PITCH.md).
+
 The closing claim should remain precise:
 
 > SyndicateLend demonstrates that a compliant loan register, institutional approvals, confidential interest calculation and atomic settlement can operate as one workflow. The next step is a shadow-register pilot with an administrative agent and a loan investor.
@@ -600,7 +689,7 @@ The closing claim should remain precise:
 
 ## 13. Research Sources
 
-Market figures and product claims in this PRD were checked against the following primary or first-party sources on 10 September 2026:
+Market figures and product claims in this PRD were checked against the following primary or first-party sources on 10 September 2026 (source 12 on 12 September 2026):
 
 1. [LSTA — 1Q26 Secondary Trading and Settlement Study](https://www.lsta.org/content/secondary-trading-settlement-study-first-quarter-2026/) — reports $971 billion of secondary trading in 2025 and the subsequent trailing-twelve-month milestone.
 2. [LSTA — 2Q25 Secondary Loan Trading Volumes](https://www.lsta.org/content/lsta-secondary-trading-monthly-executive-summary-2q25-secondary-loan-trading-volumes-spike-again-to-a-record-262-billion/) — reports index outstandings approaching $1.5 trillion and 2025 trading activity.
@@ -613,3 +702,4 @@ Market figures and product claims in this PRD were checked against the following
 9. [Privy — Quorum approvals](https://docs.privy.io/controls/common-use-cases/quorum-approval) — threshold authorisation for wallet actions.
 10. [Chainlink — Confidential Workflows](https://chain.link/privacy) — TEE-based confidential inputs and computation in CRE.
 11. [LSTA — Delayed Compensation Regime](https://www.lsta.org/content/the-lsta-delayed-compensation-regime/?ind=0&wpdmdl=1172) — operating rules for allocating economics after delayed settlement.
+12. [SLMA — About the Secondary Loan Market Association (India)](https://www.slma.in/page/about-slma) — incorporated August 2020 by ten banks including SBI, ICICI Bank and HDFC Bank, following the RBI task force on a secondary market for corporate loans.
