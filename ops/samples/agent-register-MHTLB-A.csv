@@ -1,0 +1,5 @@
+facility_id,tranche,lender_name,lender_lei,lender_wallet,commitment_usd,as_of
+MHTLB-A,Tranche A,Meridian Credit Partners,5493001KJTIIGC8Y1R12,,45000000,2026-09-12
+MHTLB-A,Tranche A,Meridian Credit Partners (desk wallet),5493001KJTIIGC8Y1R12,0xA6bE8BBdC1175538349E745fF7AB4A0f9D5Cb2fB,100000000,2026-09-12
+MHTLB-A,Tranche A,Halcyon Loan Fund IV,213800WSGIIZCXF1P572,,5000000,2026-09-12
+MHTLB-A,Tranche A,Northgate Insurance,549300ZFEEJ2IP5VME73,,100000000,2026-09-12

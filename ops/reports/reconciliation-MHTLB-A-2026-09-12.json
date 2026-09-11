@@ -1,0 +1,63 @@
+{
+  "facilityId": "MHTLB-A",
+  "token": "0x1600f4a4609b9e9c48c432a16732da2634b7b1b7",
+  "asOf": "2026-09-12",
+  "source": "agent-register-MHTLB-A.csv",
+  "generatedAt": "2026-09-11T21:09:45.555Z",
+  "lines": [
+    {
+      "lender": "Meridian Credit Partners",
+      "lei": "5493001KJTIIGC8Y1R12",
+      "wallet": "0xe4691b01dfbb6c3022c9c1b82521999bf9c2797e",
+      "book": "45000000",
+      "register": "40000000",
+      "difference": "-5000000",
+      "status": "BREAK"
+    },
+    {
+      "lender": "Meridian Credit Partners (desk wallet)",
+      "lei": "5493001KJTIIGC8Y1R12",
+      "wallet": "0xa6be8bbdc1175538349e745ff7ab4a0f9d5cb2fb",
+      "book": "100000000",
+      "register": "100000000",
+      "difference": "0",
+      "status": "AGREES"
+    },
+    {
+      "lender": "Halcyon Loan Fund IV",
+      "lei": "213800WSGIIZCXF1P572",
+      "wallet": "0x8ce724550b8608d6ade9d05f903f0657fc9f46c5",
+      "book": "5000000",
+      "register": "10000000",
+      "difference": "5000000",
+      "status": "BREAK"
+    },
+    {
+      "lender": "Northgate Insurance",
+      "lei": "549300ZFEEJ2IP5VME73",
+      "wallet": "0x2f513e82c82de59700a731a44c37835009b95391",
+      "book": "100000000",
+      "register": "100000000",
+      "difference": "0",
+      "status": "AGREES"
+    }
+  ],
+  "totals": {
+    "agentBook": "250000000",
+    "registerSupply": "250000000",
+    "difference": "0"
+  },
+  "agreementRate": "2/4",
+  "breaks": [
+    {
+      "lender": "Meridian Credit Partners",
+      "difference": "-5000000",
+      "status": "BREAK"
+    },
+    {
+      "lender": "Halcyon Loan Fund IV",
+      "difference": "5000000",
+      "status": "BREAK"
+    }
+  ]
+}
