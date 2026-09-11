@@ -35,9 +35,9 @@ export function Blotter() {
     [api],
   );
   useEffect(() => {
-    load(true);
+    const initial = setTimeout(() => void load(true), 0);
     const t = setInterval(() => load(true), 12_000);
-    return () => clearInterval(t);
+    return () => { clearTimeout(initial); clearInterval(t); };
   }, [load]);
 
   async function act(label: string, fn: () => Promise<unknown>) {
@@ -79,6 +79,12 @@ export function Blotter() {
         }
       />
       {err && <p className="mb-4 text-sm text-bad">{err}</p>}
+
+      <div className="rfq-explainer">
+        <div className="rfq-identity"><span>YOU ARE ACTING FOR</span><strong>{data.names[data.me.institution] ?? data.me.institution}</strong><small>{data.me.role} · eligible institutional desk</small></div>
+        <div className="rfq-how"><div className="active"><i>1</i><span><strong>Request</strong><small>Seller publishes par, side and deadline</small></span></div><b>→</b><div><i>2</i><span><strong>Price</strong><small>Another eligible institution responds</small></span></div><b>→</b><div><i>3</i><span><strong>Accept</strong><small>Creates immutable settlement economics</small></span></div></div>
+        <div className="rfq-tape"><i /><span>HCS MARKET TAPE</span><strong>{data.topic}</strong><small>ordered and timestamped</small></div>
+      </div>
 
       <div className="grid grid-cols-4 gap-3 mb-6">
         <Stat k="Open RFQs" v={open.length} />

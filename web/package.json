@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "demo:counterparty": "tsx scripts/counterparty-agent.mts"
   },
   "dependencies": {
     "@hashgraph/sdk": "^2.81.0",

@@ -42,6 +42,29 @@ Three eligible lenders hold the tranche (seller 150m par, holder 100m par, buyer
 | `web/` | Institutional web app (Day 3) |
 | `cre/` | Chainlink CRE confidential workflow (Day 4) |
 
+## Five-minute demo mode
+
+The web app opens on an **Execution room** that combines the current RFQ, Privy quorum progress, Hedera schedule, ATS register and CRE lifecycle status. Keep a second terminal running the counterparty agent during the recording; it watches the real HCS topic and responds to any open RFQ from another institution:
+
+```bash
+# terminal 1
+cd web && npm run dev
+
+# terminal 2, from the repository root
+npm run demo:counterparty -- --institution halcyon --price 99.00
+```
+
+Recommended recording flow:
+
+1. Sign in as Meridian's trader and show the ATS security and eligible-holder register.
+2. Publish a $5m sell RFQ. The counterparty terminal detects it and Halcyon appears as a priced response on the HCS-backed blotter.
+3. Accept the quote. The Execution room now shows the immutable instruction and two institutional mandate lanes.
+4. Open each institution's real Privy members in separate browser profiles and demonstrate that one signature is insufficient, while the second executes the desk intent.
+5. Show the resulting Hedera scheduled transaction and atomic loan/mUSD settlement receipt.
+6. Open **Interest lifecycle** to show the confidential-data boundary, public HCS commitment, valid calculation and altered-notice rejection. Run `npm run demo:cre` beforehand to capture the two simulation results for this screen.
+
+The counterparty process submits RFQ quotes only. It cannot authorize either desk wallet and does not bypass Privy's user-bound 2-of-3 policy.
+
 ## Prerequisites
 
 - Node 20+ (tested on 25), Foundry

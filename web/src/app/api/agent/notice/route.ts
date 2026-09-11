@@ -16,6 +16,6 @@ export async function GET(req: Request) {
   if (!n) return Response.json({ error: "notice not found" }, { status: 404 });
   // The tamper switch lets the demo prove the enclave rejects a modified notice.
   const tamper = url.searchParams.get("tamper") === "1";
-  const { hcs: _hcs, commitment: _c, createdAt: _t, ...body } = n;
+  const body = { facilityId: n.facilityId, periodId: n.periodId, periodStart: n.periodStart, periodEnd: n.periodEnd, rateBps: n.rateBps, dayCountBasis: n.dayCountBasis, holders: n.holders, nonce: n.nonce };
   return Response.json(tamper ? { ...body, rateBps: body.rateBps + 25 } : body, { headers: { "cache-control": "no-store" } });
 }

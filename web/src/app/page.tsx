@@ -1,83 +1,61 @@
 "use client";
 
 import Image from "next/image";
-
 import { usePrivy } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { Logo } from "@/components/logo";
-
-const layers = [
-  { k: "Register", t: "Hedera Asset Tokenization Studio", d: "One ERC-3643 security per tranche. Whitelist and KYC are checked inside every transfer." },
-  { k: "Control", t: "Privy organisation wallets", d: "Each desk is a 2-of-3 quorum of named people. No single person, and never the platform, can move it." },
-  { k: "Settlement", t: "Scheduled atomic DvP", d: "Loan and cash legs move in one Hedera transaction at the agreed time, or neither moves." },
-  { k: "Evidence", t: "Consensus Service audit trail", d: "Every RFQ, quote, approval and receipt is ordered and timestamped on a public topic." },
-];
+import s from "./home.module.css";
 
 export default function Landing() {
   const { ready, authenticated, login } = usePrivy();
   const router = useRouter();
   useEffect(() => {
-    if (ready && authenticated) router.replace("/blotter");
+    if (ready && authenticated) router.replace("/overview");
   }, [ready, authenticated, router]);
 
   return (
-    <main className="flex-1 grid lg:grid-cols-[1.1fr_1fr] min-h-screen">
-      <section className="panel-dark rounded-none p-10 lg:p-14 flex flex-col justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <Image src="/globe.png" alt="" width={40} height={40} />
-            <span className="text-2xl font-semibold tracking-tight">
-              Syndicate<span className="font-normal">Lend</span>
-            </span>
-          </div>
-          <h1 className="mt-10 text-3xl lg:text-[2.4rem] leading-tight font-semibold tracking-tight">
-            A loan trade should not stay exposed for weeks after both sides have agreed.
-          </h1>
-          <p className="mt-4 text-[15px] leading-relaxed text-[#b9dff2] max-w-xl">
-            SyndicateLend is a private tokenised register and request-for-quote market for syndicated-loan interests. Ownership, eligibility,
-            institutional approval and payment settle as one controlled transaction.
-          </p>
-        </div>
-        <ol className="mt-12 grid sm:grid-cols-2 gap-4">
-          {layers.map((l, i) => (
-            <li key={l.k} className="rounded-lg border border-white/10 bg-white/5 p-4">
-              <div className="text-[10px] uppercase tracking-wider text-[#8ea0bb]">
-                {i + 1} · {l.k}
-              </div>
-              <div className="text-sm font-semibold mt-1">{l.t}</div>
-              <div className="text-xs text-[#b9dff2] mt-1 leading-relaxed">{l.d}</div>
-            </li>
-          ))}
-        </ol>
+    <main className={s.page}>
+      <header className={s.header}>
+        <Image className={s.brand} src="/syndicatelend-logo.png" alt="SyndicateLend" width={1484} height={260} priority />
+        <span className={s.network}><i /> Hedera testnet</span>
+      </header>
+
+      <section className={s.hero} aria-labelledby="headline">
+        <div className={s.eyebrow}>Institutional credit. Connected.</div>
+        <h1 id="headline">The only platform you need to<br className={s.desktopBreak} /> manage and trade <span>syndicated loans</span></h1>
+        <h2>Settle in seconds, not weeks.</h2>
+        <p>Tokenise lender positions. Trade through RFQs. Approve as an institution.<br className={s.desktopBreak} /> Exchange loan interests and cash together, with confidential interest calculations.</p>
+        <button className={s.login} disabled={!ready} onClick={() => login()}>Log in <span aria-hidden="true">↗</span></button>
       </section>
-      <section className="flex items-center justify-center p-10">
-        <div className="card max-w-md w-full p-8">
-          <Logo height={30} />
-          <h2 className="mt-6 text-lg font-semibold text-navy-900">Sign in to your desk</h2>
-          <p className="mt-1 text-sm text-ink-muted">
-            Use your firm email. Your role (trader, compliance officer or portfolio manager) decides what you can propose and approve.
-          </p>
-          <button className="btn btn-primary mt-6 w-full justify-center" disabled={!ready} onClick={() => login()}>
-            Continue with email or Google
-          </button>
-          <dl className="mt-6 grid grid-cols-3 gap-3 text-center">
-            {[
-              ["2 of 3", "desk approvals"],
-              ["1 tx", "atomic DvP"],
-              ["T+0", "scheduled settlement"],
-            ].map(([v, k]) => (
-              <div key={k} className="rounded-lg bg-surface-2 border border-line p-3">
-                <dt className="text-navy-900 font-semibold num">{v}</dt>
-                <dd className="text-[11px] text-ink-muted">{k}</dd>
-              </div>
-            ))}
-          </dl>
-          <p className="mt-5 text-[11px] leading-relaxed text-ink-faint">
-            Hedera testnet demonstration with synthetic data. Tokens do not constitute legal title to a loan interest.
-          </p>
-        </div>
+
+      <section className={s.layers} aria-label="Technology powering each layer">
+        <article>
+          <div className={s.layerHead}><Image src="/integrations/hedera.svg" alt="Hedera" width={126} height={35} /><span>01 / Asset layer</span></div>
+          <h3>Tokenised positions.<br />Atomic settlement.</h3>
+          <p>Asset Tokenization Studio records lender holdings, enforces eligibility and enables loan tokens to settle against cash.</p>
+          <div className={s.boundary}>On-ledger ownership &amp; transfer controls</div>
+        </article>
+        <article>
+          <div className={s.layerHead}><div className={s.privy}><Image src="/integrations/privy.png" alt="Privy" width={128} height={70} /></div><span>02 / Authority layer</span></div>
+          <h3>Your institution.<br />Your approval policy.</h3>
+          <p>Privy organisation wallets require two of three authorised members to approve. Every wallet action follows the desk’s policy.</p>
+          <div className={s.boundary}>Member authentication &amp; wallet authorisation</div>
+        </article>
+        <article>
+          <div className={s.layerHead}><Image src="/integrations/chainlink.svg" alt="Chainlink" width={138} height={35} /><span>03 / Privacy layer</span></div>
+          <h3>Private loan terms.<br />Verifiable calculations.</h3>
+          <p>Chainlink CRE processes rate notices inside a confidential handler. Only the commitment and holder payment amounts are released.</p>
+          <div className={s.boundary}>Confidential inputs &amp; interest computation</div>
+        </article>
       </section>
+
+      <footer className={s.footer}>
+        <span className={s.note}>Synthetic assets on public testnet · CRE simulation</span>
+        <a className={s.powered} href="https://fullmetal.finance" target="_blank" rel="noreferrer" aria-label="Powered by fullmetal.finance">
+          <span>Powered by</span>
+          <Image src="/fullmetal-logo.png" alt="fullmetal.finance" width={1920} height={1080} />
+        </a>
+      </footer>
     </main>
   );
 }

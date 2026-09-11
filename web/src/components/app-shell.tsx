@@ -8,10 +8,12 @@ import { UserMenu } from "./user-menu";
 import { useMe } from "@/lib/use-me";
 
 const nav = [
-  { href: "/blotter", label: "RFQ blotter", hint: "Quotes, trades, settlement" },
-  { href: "/approvals", label: "Approvals", hint: "Desk quorum authorisations" },
-  { href: "/portfolio", label: "Portfolio", hint: "Positions and cash" },
-  { href: "/register", label: "Register", hint: "Facility and eligible holders" },
+  { href: "/overview", label: "Loan overview", hint: "The facility and current trade" },
+  { href: "/blotter", label: "Loan trading", hint: "Request quotes and agree a sale" },
+  { href: "/approvals", label: "Approvals", hint: "Authorise your institution’s actions" },
+  { href: "/lifecycle", label: "Interest", hint: "Verify the notice and calculate payments" },
+  { href: "/portfolio", label: "Portfolio", hint: "Your loan principal and cash" },
+  { href: "/register", label: "Lender register", hint: "Who holds a share of this loan" },
   { href: "/admin", label: "Administration", hint: "Institutions and venue" },
 ];
 
@@ -22,7 +24,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen">
       <aside className="sidebar w-64 shrink-0 flex flex-col">
         <div className="px-5 pt-5 pb-4 border-b border-white/10">
-          <Link href="/blotter" aria-label="SyndicateLend home" className="flex items-center gap-2">
+          <Link href="/overview" aria-label="SyndicateLend home" className="flex items-center gap-2">
             <Image src="/globe.png" alt="" width={26} height={26} className="rounded-full" />
             <span className="text-white font-semibold tracking-tight text-[15px]">
               Syndicate<span className="font-normal">Lend</span>
@@ -58,7 +60,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-14 border-b border-line bg-surface/80 backdrop-blur flex items-center justify-between px-6 sticky top-0 z-10">
-          <div className="text-sm text-ink-muted">Private tokenised loan register and RFQ market</div>
+          <div className="flex items-center gap-3 text-sm text-ink-muted"><span className="workspace-chip">MHTLB-A</span><span>Syndicated loan register and trading</span></div>
           <UserMenu />
         </header>
         <main className="p-6 flex-1 max-w-[1280px] w-full">{children}</main>

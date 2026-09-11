@@ -10,7 +10,9 @@
   "scripts": {
     "ops": "npm run --workspace ops",
     "contracts:build": "cd contracts && forge build",
-    "contracts:test": "cd contracts && forge test -vv"
+    "contracts:test": "cd contracts && forge test -vv",
+    "demo:counterparty": "npm run --workspace web demo:counterparty --",
+    "demo:cre": "node cre/scripts/run-demo.mjs"
   },
   "engines": {
     "node": ">=20"

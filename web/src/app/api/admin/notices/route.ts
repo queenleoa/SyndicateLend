@@ -10,7 +10,7 @@ function requireOperator(userId: string) {
 export async function GET(req: Request) {
   try {
     await requireSession(req);
-    const list = notices.read().notices.map(({ rateBps: _r, nonce: _n, ...pub }) => pub);
+    const list = notices.read().notices.map((n) => ({ facilityId: n.facilityId, periodId: n.periodId, periodStart: n.periodStart, periodEnd: n.periodEnd, holders: n.holders, commitment: n.commitment, createdAt: n.createdAt, hcs: n.hcs }));
     return Response.json({ notices: list });
   } catch (e) {
     return jsonError(e);
@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     requireOperator(s.userId);
     const b = await req.json();
     const n = await createAndCommit({ facilityId: b.facilityId ?? "MHTLB-A", periodStart: Number(b.periodStart), periodEnd: Number(b.periodEnd), rateBps: Number(b.rateBps), dayCountBasis: b.dayCountBasis ? Number(b.dayCountBasis) : 360 });
-    const { rateBps: _r, nonce: _n, ...pub } = n;
+    const pub = { facilityId: n.facilityId, periodId: n.periodId, periodStart: n.periodStart, periodEnd: n.periodEnd, holders: n.holders, commitment: n.commitment, createdAt: n.createdAt, hcs: n.hcs };
     return Response.json({ notice: pub });
   } catch (e) {
     return jsonError(e);
