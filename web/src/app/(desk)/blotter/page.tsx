@@ -1,10 +1,7 @@
-export const metadata = { title: "Blotter" };
+import { Blotter } from "@/components/blotter";
+
+export const metadata = { title: "RFQ blotter" };
 
 export default function BlotterPage() {
-  return (
-    <div>
-      <h1 className="text-lg font-semibold text-navy-800">Blotter</h1>
-      <p className="mt-2 text-sm text-ink-muted">Coming up.</p>
-    </div>
-  );
+  return <Blotter />;
 }
