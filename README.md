@@ -266,7 +266,7 @@ Labelled scenario, not part of the build: if one in ten facilities at Versana sc
 
 Testnet activity is a technical demonstration with synthetic data. Tokens do not constitute legal title to a loan interest. Fallbacks adopted in the demo:
 
-- **CRE** runs in the local simulator, not a deployed enclave (Confidential Workflows is in private beta). The UI reads sanitised evidence files that the demo scripts write.
+- **CRE** runs in the local simulator, not a deployed enclave (Confidential Workflows is in private beta; enrolment has been requested). The UI reads sanitised evidence files that the demo scripts write.
 - **Interest payout** is a paying-agent batch of HTS transfers driven by the workflow's released output, not an on-chain distributor consuming a DON-signed report.
 - **Persistence** in the web app is a JSON file store.
 - **Two Privy desk wallets** in the period-2 snapshot have not executed their mock-USD association intent, so they were skipped by the payout with the reason recorded on HCS.

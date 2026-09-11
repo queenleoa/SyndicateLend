@@ -33,4 +33,4 @@ Target from the PRD: three loan-market or operations practitioners, five structu
 
 ## 4. Integration partner conversations
 
-None recorded. Chainlink Confidential Workflows is in private beta; enrolment has not been requested for this project yet. ATS and Privy were integrated from their public documentation and SDKs only.
+Chainlink Confidential Workflows is in private beta. The founder has requested enrolment for SyndicateLend (request submitted; no response recorded as of 2026-09-12). Once granted, the accrual workflow moves from the local simulator to a deployed enclave with no code change beyond deployment configuration. ATS and Privy were integrated from their public documentation and SDKs only; no partner conversations are recorded.

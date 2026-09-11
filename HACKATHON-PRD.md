@@ -522,7 +522,7 @@ The MVP is complete only when a judge can:
 |---|---|---|
 | FR-01 to FR-04, FR-06 to FR-09 | Done on testnet | README "Live on Hedera testnet" and "Settlement evidence" |
 | FR-05 Privy 2-of-3 | Done | Provisioned quorums and policies; one signature is insufficient in the app |
-| FR-10, FR-11 | Done in the local CRE simulator | `cre/evidence/latest.json`; live enclave deployment needs Confidential Workflows private beta |
+| FR-10, FR-11 | Done in the local CRE simulator | `cre/evidence/latest.json`; live enclave deployment needs Confidential Workflows private beta, enrolment requested |
 | FR-12 Interest payout | Done via the disclosed fallback | Paying agent pays the CRE-released distribution in one atomic HTS transfer; README "Interest payout" |
 | FR-13, FR-14 | Done | Web app pages and HashScan receipts |
 | FR-15 Freeze and pause | Done | `npm run demo:controls`; README "Lifecycle controls" |
