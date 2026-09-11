@@ -1,6 +1,6 @@
 import { formatRequestForAuthorizationSignature, generateAuthorizationSignature, type WalletApiRequestSignatureInput } from "@privy-io/node";
 import { privy } from "./privy-server";
-import { venue } from "./venue";
+import { proposeDeskTx } from "./desk-tx";
 
 /**
  * Desk approvals = Privy intents on the institution's quorum-owned wallet.
@@ -30,21 +30,8 @@ export interface ProposeInput {
   gasLimit?: number;
 }
 
-export async function proposeSignTransaction(input: ProposeInput) {
-  const v = venue();
-  return privy().intents().rpc(input.walletId, {
-    method: "eth_signTransaction",
-    params: {
-      transaction: {
-        to: input.to,
-        data: input.data,
-        value: "0x0",
-        chain_id: v.chainId,
-        gas_limit: input.gasLimit ?? 1_000_000,
-        type: 2,
-      },
-    },
-  } as never);
+export async function proposeSignTransaction(input: ProposeInput & { walletAddress: string }) {
+  return proposeDeskTx({ walletId: input.walletId, walletAddress: input.walletAddress, to: input.to, data: input.data, gasLimit: input.gasLimit ?? 1_000_000 });
 }
 
 /** Add the calling user's authorisation to an intent (one of the quorum members). */

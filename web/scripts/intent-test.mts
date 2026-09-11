@@ -8,7 +8,7 @@ const { venue } = await import("../src/lib/venue");
 const inst = readOrg().institutions.find((i) => i.id === (process.argv[2] ?? "meridian"))!;
 const engine = new Interface(["function approve(uint256 tradeId, bytes32 instructionHash)"]);
 const data = engine.encodeFunctionData("approve", [1n, keccak256(toUtf8Bytes("demo"))]);
-const intent = await proposeSignTransaction({ walletId: inst.wallet!.id, to: venue().settlementEngine, data, summary: "test" });
+const intent = await proposeSignTransaction({ walletId: inst.wallet!.id, walletAddress: inst.wallet!.address, to: venue().settlementEngine, data, summary: "test" });
 console.log(JSON.stringify(intent, null, 2));
 const again = await getIntent(intent.intent_id);
 console.log("status:", again.status, "expires:", new Date(again.expires_at).toISOString());
