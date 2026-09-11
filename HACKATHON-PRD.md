@@ -523,11 +523,12 @@ The MVP is complete only when a judge can:
 | FR-01 to FR-04, FR-06 to FR-09 | Done on testnet | README "Live on Hedera testnet" and "Settlement evidence" |
 | FR-05 Privy 2-of-3 | Done | Provisioned quorums and policies; one signature is insufficient in the app |
 | FR-10, FR-11 | Done in the local CRE simulator | `cre/evidence/latest.json`; live enclave deployment needs Confidential Workflows private beta, enrolment requested |
-| FR-12 Interest payout | Done via the disclosed fallback | Paying agent pays the CRE-released distribution in one atomic HTS transfer; README "Interest payout" |
+| FR-12 Interest payout | Done via the disclosed fallback | Paying agent pays the CRE-released distribution in atomic HTS batches; periods 2 and 3 paid on testnet; README "Interest payout" |
 | FR-13, FR-14 | Done | Web app pages and HashScan receipts |
 | FR-15 Freeze and pause | Done | `npm run demo:controls`; README "Lifecycle controls" |
 | FR-16 Encrypted RFQ payloads | Not done | RFQ messages are synthetic plain text on the public topic |
 | Shadow-register integration (§10.3) | Done | Register reconciliation with HCS attestation and LSTA-style assignment export; README "Integration hooks" |
+| Retail feeder holders on public network (§9.5) | Done on testnet | 25 holders onboarded as KYC-gated register positions in 150 transactions; paid in period 3 in four atomic batches; README "Retail feeder holders on public testnet" |
 
 Two of the five holders in the period-2 snapshot are Privy desk wallets whose mock-USD association intent has not yet been executed by their quorum; the payout script skips them with the reason recorded on the HCS receipt. This is a demo-provisioning gap, not a design limitation.
 
@@ -581,7 +582,7 @@ Each institution becomes a Hedera account, every trade produces HCS messages and
 
 The measure that matters for institutional flow is value, not throughput. On the README's assumptions, one agent's 200-facility book puts US$120bn of loan par on the register, settles US$4bn of secondary notional and pays US$8.7bn of interest through the network per year, at roughly US$4m of value per settlement or payout transaction; at Versana scale those figures are US$900bn, US$30bn and US$65bn. The cash leg requires that money to sit in a regulated payment token on the same ledger, and an on-register loan position with atomic settlement becomes collateral that can be pledged for secured funding or OTC derivatives margin on that ledger, which is Fullmetal Finance's existing business. That collateral pool is orders of magnitude larger than any retail flow a network can attract, and it arrives through a few thousand institutional accounts.
 
-The register also extends to retail-scale account counts without new mechanisms: a regulated feeder holding one lender position can pass it through to its own KYC-gated holders on the same ATS register, and the accrual workflow and payout already operate on an arbitrary holder list. The README gives a labelled scenario (one in ten facilities with a 5,000-holder feeder) of about 750,000 accounts and 9m interest transfers a year. This is an extension path, not part of the five-day build.
+The intended topology is two layers with one transaction shape: the institutional core (register, RFQ market, settlement between institutions) on HashSphere, because positions and prices cannot be public, and retail feeder holders on public Hedera, because retail custody and transferability need the public network. The feeder is the bridge: one institutional lender on the HashSphere register and the issuer of many small positions on the public network. Public-network account growth therefore comes from the retail layer, and it is built: `ops/src/feeder-demo.ts` onboarded 25 feeder holders on public testnet as KYC-gated register positions (150 transactions), the enclave took the 30-holder snapshot in one call through the `RegisterSnapshot` helper, and the payout credited 28 holders in four atomic batches. The README extrapolates that to a labelled scenario (one in ten facilities with a 5,000-holder feeder) of about 750,000 accounts and 9m interest transfers a year.
 
 ---
 

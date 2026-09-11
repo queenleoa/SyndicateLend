@@ -1,6 +1,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { dataDir } from "./data-dir";
 
 /**
  * Institution directory for the demo. In production this is a proper database; here it is a JSON
@@ -31,7 +32,7 @@ export interface OrgFile {
   institutions: Institution[];
 }
 
-const file = path.resolve(process.cwd(), "data/org.json");
+const file = path.join(dataDir(), "org.json");
 
 export function readOrg(): OrgFile {
   if (!fs.existsSync(file)) return { institutions: [] };

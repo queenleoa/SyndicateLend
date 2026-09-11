@@ -22,6 +22,9 @@ Format from the PRD (§9.3): **observation → evidence → decision → resulti
 | 2026-09-11 | A Privy EVM wallet cannot sign a native `TokenAssociateTransaction`. | Privy signs `eth_signTransaction` only. | Desk wallets associate mock USD through the HIP-719 token facade as a quorum intent. |
 | 2026-09-11 | The CRE HTTP capability requires request bodies as base64 bytes, and QuickJS has no `atob`. | "invalid base64 string" in simulation. | Hand-rolled decoder in `workflow.ts`; documented in `cre/README.md`. |
 | 2026-09-12 | The period-1 notice snapshot listed only Privy desk wallets, so the payout would have reached one holder. | `cre/evidence/distribution.json` for period 1. | Snapshot now unions the ops deployment's eligible lenders; period 2 covers five holders. |
+| 2026-09-12 | A 30-holder commitment message exceeded HCS's 1,024-byte limit and arrived as two chunks; the enclave read half a JSON document. | Period-3 commitment at HCS #5–6. | Workflow and payout script reassemble chunked messages by initial transaction id. |
+| 2026-09-12 | Thirty per-holder balance reads exceeded the CRE simulator's per-execution HTTP call limit. | `LimitExceeded ... http-actions.SendRequest`. | Deployed `RegisterSnapshot` (one call returns every holder's balance); the enclave now makes three requests per period regardless of holder count. Two Foundry tests added. |
+| 2026-09-12 | HTS caps token-transfer entries per transaction, so a 28-holder payout cannot be one transaction. | Payout for period 3. | Payout batches up to nine credits per atomic transaction; four batches, receipt at HCS #8. ATS Mass Payout remains the production path. |
 
 ## 3. Practitioner review (open)
 
@@ -33,4 +36,4 @@ Target from the PRD: three loan-market or operations practitioners, five structu
 
 ## 4. Integration partner conversations
 
-Chainlink Confidential Workflows is in private beta. The founder has requested enrolment for SyndicateLend (request submitted; no response recorded as of 2026-09-12). Once granted, the accrual workflow moves from the local simulator to a deployed enclave with no code change beyond deployment configuration. ATS and Privy were integrated from their public documentation and SDKs only; no partner conversations are recorded.
+Chainlink Confidential Workflows is in private beta. The founder has requested enrolment for SyndicateLend (request submitted; no response recorded as of 2026-09-12). Once granted, the accrual workflow moves from the local simulator to a deployed enclave with no code change beyond deployment configuration. ATS and Privy were integrated from their public documentation and SDKs only; Access for HashSphere requested.

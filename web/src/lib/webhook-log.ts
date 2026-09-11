@@ -1,8 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
+import { dataDir } from "./data-dir";
 
 /** Append-only JSONL log of verified Privy webhook events (demo persistence; a database in production). */
-const file = path.resolve(process.cwd(), "data/privy-events.jsonl");
+const file = path.join(dataDir(), "privy-events.jsonl");
 
 export function recordWebhookEvent(event: Record<string, unknown>) {
   fs.mkdirSync(path.dirname(file), { recursive: true });

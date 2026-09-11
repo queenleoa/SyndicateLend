@@ -1,11 +1,10 @@
-import { createRequire } from "node:module";
 import { Contract, JsonRpcProvider, Wallet, keccak256, toUtf8Bytes, type InterfaceAbi } from "ethers";
 import { venue } from "./venue";
 import { HEDERA_RPC } from "./hedera";
+// ABI copied from contracts/out (gitignored) so the web app builds without a Foundry build step.
+import engineAbi from "./abi/SettlementEngine.abi.json";
 
-const require = createRequire(import.meta.url);
-const artifact = require("../../../contracts/out/SettlementEngine.sol/SettlementEngine.json");
-export const ENGINE_ABI = artifact.abi as InterfaceAbi;
+export const ENGINE_ABI = engineAbi as InterfaceAbi;
 
 export const STATE = ["None", "AwaitingApprovals", "Scheduled", "Settled", "Failed", "Cancelled"] as const;
 export type EngineState = (typeof STATE)[number];

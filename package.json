@@ -18,7 +18,8 @@
     "typecheck": "npm run --workspace ops typecheck && cd web && npx tsc --noEmit",
     "lint": "npm run --workspace web lint",
     "agent:reconcile": "npm run --workspace ops reconcile --",
-    "agent:export": "npm run --workspace ops export-assignments --"
+    "agent:export": "npm run --workspace ops export-assignments --",
+    "demo:feeder": "npm run --workspace ops feeder --"
   },
   "engines": {
     "node": ">=20"

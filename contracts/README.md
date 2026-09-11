@@ -4,6 +4,8 @@ Foundry project for `SettlementEngine`, the atomic delivery-versus-payment contr
 
 - `src/SettlementEngine.sol`: trade instructions, hash-bound approvals from both desks, HSS scheduling from inside the contract (HIP-1215 `scheduleCall`, the engine pays), `settle` running both legs in an external self-call so any revert rolls back both and is stored on the trade, reissue and cancel paths, reentrancy guard.
 - `src/interfaces/IHederaScheduleService.sol`: the Hedera Schedule Service system-contract interface.
+- `src/RegisterSnapshot.sol`: one-call balance snapshot of a holder list, so the CRE enclave reads the whole register through a single mirror-node `contracts/call`. Deployed at `0x33687eBC6C3f8A89DbE60ADc3E631149dA6E0690`.
+- `test/RegisterSnapshot.t.sol`: 200-holder snapshot in one call, and the empty case.
 - `test/SettlementEngine.t.sol` with `test/mocks/`: ATS, HTS and HSS doubles. 19 tests cover the happy path, approval binding, eligibility revocation, cash-leg rollback, pause, expiry, replay, reissue and cancel.
 - `script/DeploySettlementEngine.s.sol`: deployment (funds the engine with HBAR for its scheduled executions).
 

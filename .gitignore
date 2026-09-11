@@ -58,3 +58,6 @@ web/data/privy-events.jsonl
 
 # CRE build artefacts
 .cre_build_tmp.js
+
+# Feeder-holder demo keys (synthetic testnet identities)
+ops/.feeder-keys.json

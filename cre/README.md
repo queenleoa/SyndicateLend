@@ -6,7 +6,7 @@
 
 1. The administrative agent publishes a salted commitment to the private rate notice on the Hedera Consensus Service.
 2. The TEE obtains `API_TOKEN` from the Vault DON and fetches the notice from the authenticated agent endpoint.
-3. Inside the enclave, it recomputes the commitment, reads the public ATS holder snapshot and calculates interest with integer arithmetic.
+3. Inside the enclave, it recomputes the commitment, reads every holder's balance in one call through the `RegisterSnapshot` contract (`snapshotReader` in the config) and calculates interest with integer arithmetic. Three HTTP requests per period regardless of holder count; HCS messages chunked above 1,024 bytes are reassembled.
 4. Only `(commitment, periodId, holders, amounts)` crosses back to the DON for a signed report. The rate, day-count basis, nonce and authenticated response do not.
 5. The `tamper-settings` target requests an altered rate and must abort on the commitment mismatch.
 

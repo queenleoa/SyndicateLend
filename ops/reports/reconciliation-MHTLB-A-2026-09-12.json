@@ -3,7 +3,7 @@
   "token": "0x1600f4a4609b9e9c48c432a16732da2634b7b1b7",
   "asOf": "2026-09-12",
   "source": "agent-register-MHTLB-A.csv",
-  "generatedAt": "2026-09-11T21:09:45.555Z",
+  "generatedAt": "2026-09-11T22:35:03.154Z",
   "lines": [
     {
       "lender": "Meridian Credit Partners",
@@ -36,8 +36,17 @@
       "lender": "Northgate Insurance",
       "lei": "549300ZFEEJ2IP5VME73",
       "wallet": "0x2f513e82c82de59700a731a44c37835009b95391",
-      "book": "100000000",
-      "register": "100000000",
+      "book": "99975000",
+      "register": "99975000",
+      "difference": "0",
+      "status": "AGREES"
+    },
+    {
+      "lender": "Northgate Feeder (retail pass-through) (25 pass-through holders)",
+      "lei": "549300ZFEEJ2IP5VME73",
+      "wallet": "feeder",
+      "book": "25000",
+      "register": "25000",
       "difference": "0",
       "status": "AGREES"
     }
@@ -47,7 +56,7 @@
     "registerSupply": "250000000",
     "difference": "0"
   },
-  "agreementRate": "2/4",
+  "agreementRate": "3/5",
   "breaks": [
     {
       "lender": "Meridian Credit Partners",

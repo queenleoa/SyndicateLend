@@ -1,5 +1,5 @@
 import { bytesToBase64, cre, hexToBase64, json, ok, type TeeRuntime } from '@chainlink/cre-sdk'
-import { encodeAbiParameters, encodeFunctionData, keccak256, parseAbiParameters, type Hex } from 'viem'
+import { decodeFunctionResult, encodeAbiParameters, encodeFunctionData, keccak256, parseAbiParameters, type Hex } from 'viem'
 import { z } from 'zod'
 
 // ─── SyndicateLend: confidential interest accrual ───────────────────────────
@@ -24,6 +24,7 @@ export const configSchema = z.object({
 	mirrorUrl: z.string(),
 	noticeTopicId: z.string(),
 	loanToken: z.string(),
+	snapshotReader: z.string(), // RegisterSnapshot contract: every holder's balance in one call
 	noticeUrl: z.string(),
 	secretId: z.string(),
 	tamper: z.boolean().default(false),
@@ -54,15 +55,59 @@ const noticeSchema = z.object({
 })
 
 const mirrorMessagesSchema = z.object({
-	messages: z.array(z.object({ sequence_number: z.number(), consensus_timestamp: z.string(), message: z.string() })),
+	messages: z.array(
+		z.object({
+			sequence_number: z.number(),
+			consensus_timestamp: z.string(),
+			message: z.string(),
+			chunk_info: z.object({ initial_transaction_id: z.unknown(), number: z.number(), total: z.number() }).nullable().optional(),
+		}),
+	),
 })
+type MirrorMessage = z.infer<typeof mirrorMessagesSchema>['messages'][number]
+
+// HCS splits messages over 1024 bytes into chunks that the mirror node returns as separate messages
+// (shared initial_transaction_id, numbered 1..total). Reassemble them into complete texts, newest first.
+const completeMessages = (messages: MirrorMessage[]): { seq: number; text: string }[] => {
+	const out: { seq: number; text: string }[] = []
+	const groups = new Map<string, MirrorMessage[]>()
+	for (const m of messages) {
+		if (!m.chunk_info || m.chunk_info.total <= 1) {
+			out.push({ seq: m.sequence_number, text: base64ToUtf8(m.message) })
+			continue
+		}
+		const key = JSON.stringify(m.chunk_info.initial_transaction_id)
+		groups.set(key, [...(groups.get(key) ?? []), m])
+	}
+	for (const parts of groups.values()) {
+		if (parts.length !== parts[0].chunk_info!.total) continue // incomplete in this page
+		parts.sort((a, b) => a.chunk_info!.number - b.chunk_info!.number)
+		out.push({ seq: parts[parts.length - 1].sequence_number, text: parts.map((x) => base64ToUtf8(x.message)).join('') })
+	}
+	return out.sort((a, b) => b.seq - a.seq)
+}
+
 const mirrorCallSchema = z.object({ result: z.string() })
 
 // Same encoding as the agent service (web/src/lib/notices.ts).
 const NOTICE_ABI = parseAbiParameters(
 	'string facilityId, uint256 periodId, uint256 periodStart, uint256 periodEnd, uint256 rateBps, uint256 dayCountBasis, bytes32 nonce',
 )
-const BALANCE_OF_ABI = [{ type: 'function', name: 'balanceOf', stateMutability: 'view', inputs: [{ name: 'a', type: 'address' }], outputs: [{ type: 'uint256' }] }] as const
+const SNAPSHOT_ABI = [
+	{
+		type: 'function',
+		name: 'snapshot',
+		stateMutability: 'view',
+		inputs: [
+			{ name: 'token', type: 'address' },
+			{ name: 'holders', type: 'address[]' },
+		],
+		outputs: [
+			{ name: 'out', type: 'uint256[]' },
+			{ name: 'total', type: 'uint256' },
+		],
+	},
+] as const
 
 // QuickJS has no atob: decode base64 (mirror node message bodies) by hand.
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
@@ -90,12 +135,23 @@ export const onCronTrigger = (runtime: TeeRuntime<Config>): string => {
 
 	// 1. Latest commitment on the public notices topic.
 	const topicRes = http
-		.sendRequest(runtime, { url: `${config.mirrorUrl}/api/v1/topics/${config.noticeTopicId}/messages?limit=1&order=desc`, method: 'GET' })
+		.sendRequest(runtime, { url: `${config.mirrorUrl}/api/v1/topics/${config.noticeTopicId}/messages?limit=25&order=desc`, method: 'GET' })
 		.result()
 	if (!ok(topicRes)) throw new Error(`mirror node topic read failed: ${topicRes.statusCode}`)
-	const latest = mirrorMessagesSchema.parse(json(topicRes)).messages[0]
-	if (!latest) throw new Error('no commitment published on the notices topic')
-	const commitment = commitmentSchema.parse(JSON.parse(base64ToUtf8(latest.message)))
+	// Latest complete notice-commitment (other message types, such as payout receipts, share the topic).
+	let commitment: z.infer<typeof commitmentSchema> | null = null
+	for (const m of completeMessages(mirrorMessagesSchema.parse(json(topicRes)).messages)) {
+		try {
+			const parsed = JSON.parse(m.text)
+			if (parsed?.type === 'notice-commitment') {
+				commitment = commitmentSchema.parse(parsed)
+				break
+			}
+		} catch {
+			/* not JSON; skip */
+		}
+	}
+	if (!commitment) throw new Error('no commitment published on the notices topic')
 	if (commitment.facilityId !== config.facilityId) throw new Error(`latest commitment is for ${commitment.facilityId}, not ${config.facilityId}`)
 
 	// 2. Private notice, fetched from inside the enclave with the Vault DON secret.
@@ -126,25 +182,23 @@ export const onCronTrigger = (runtime: TeeRuntime<Config>): string => {
 		throw new Error(`notice does not match the committed hash for period ${commitment.periodId}; accrual aborted`)
 	}
 
-	// 4. Register snapshot: par balance per holder from the ATS security.
+	// 4. Register snapshot: every holder's par balance from the ATS security in ONE call through the
+	//    RegisterSnapshot helper, so the enclave's request count does not grow with the holder list.
 	const days = BigInt(Math.floor((notice.periodEnd - notice.periodStart) / 86400))
 	const holders = commitment.holders.map((h) => h.toLowerCase() as Hex)
-	const amounts: bigint[] = []
-	for (const holder of holders) {
-		const data = encodeFunctionData({ abi: BALANCE_OF_ABI, functionName: 'balanceOf', args: [holder] })
-		const callRes = http
-			.sendRequest(runtime, {
-				url: `${config.mirrorUrl}/api/v1/contracts/call`,
-				method: 'POST',
-				multiHeaders: { 'Content-Type': { values: ['application/json'] } },
-				// Capability request bodies are raw bytes, carried as base64.
-				body: bytesToBase64(new TextEncoder().encode(JSON.stringify({ to: config.loanToken, data, estimate: false }))),
-			})
-			.result()
-		if (!ok(callRes)) throw new Error(`balance read failed for holder: ${callRes.statusCode}`)
-		const par = BigInt(mirrorCallSchema.parse(json(callRes)).result)
-		amounts.push(accrual(par, BigInt(notice.rateBps), days, BigInt(notice.dayCountBasis)))
-	}
+	const data = encodeFunctionData({ abi: SNAPSHOT_ABI, functionName: 'snapshot', args: [config.loanToken as Hex, holders] })
+	const callRes = http
+		.sendRequest(runtime, {
+			url: `${config.mirrorUrl}/api/v1/contracts/call`,
+			method: 'POST',
+			multiHeaders: { 'Content-Type': { values: ['application/json'] } },
+			// Capability request bodies are raw bytes, carried as base64.
+			body: bytesToBase64(new TextEncoder().encode(JSON.stringify({ to: config.snapshotReader, data, estimate: false }))),
+		})
+		.result()
+	if (!ok(callRes)) throw new Error(`register snapshot failed: ${callRes.statusCode}`)
+	const [pars] = decodeFunctionResult({ abi: SNAPSHOT_ABI, functionName: 'snapshot', data: mirrorCallSchema.parse(json(callRes)).result as Hex })
+	const amounts = pars.map((par) => accrual(par, BigInt(notice.rateBps), days, BigInt(notice.dayCountBasis)))
 	const total = amounts.reduce((a, b) => a + b, 0n)
 
 	// Simulation-only log. Says nothing about the rate; remove before production.

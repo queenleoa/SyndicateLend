@@ -52,9 +52,24 @@ const prior = ((dep.interestPayouts as { commitment: string }[] | undefined) ?? 
 if (prior && !force) throw new Error(`period ${released.periodId} (commitment ${released.commitment}) was already paid; pass --force to pay again`);
 
 // 1. The distribution must correspond to a commitment the agent actually published.
-const msgs = await mirrorGet<{ messages: { sequence_number: number; message: string }[] }>(`/topics/${topic}/messages?limit=100&order=desc`);
-const committed = msgs.messages
-  .map((m) => ({ seq: m.sequence_number, ev: safeJson(Buffer.from(m.message, "base64").toString("utf8")) }))
+type MirrorMsg = { sequence_number: number; message: string; chunk_info?: { initial_transaction_id: unknown; number: number; total: number } | null };
+const msgs = await mirrorGet<{ messages: MirrorMsg[] }>(`/topics/${topic}/messages?limit=100&order=desc`);
+// Messages over 1024 bytes arrive as chunks; reassemble by initial_transaction_id before parsing.
+const complete: { seq: number; text: string }[] = [];
+const groups = new Map<string, MirrorMsg[]>();
+for (const m of msgs.messages) {
+  if (!m.chunk_info || m.chunk_info.total <= 1) { complete.push({ seq: m.sequence_number, text: Buffer.from(m.message, "base64").toString("utf8") }); continue; }
+  const key = JSON.stringify(m.chunk_info.initial_transaction_id);
+  groups.set(key, [...(groups.get(key) ?? []), m]);
+}
+for (const parts of groups.values()) {
+  if (parts.length !== parts[0].chunk_info!.total) continue;
+  parts.sort((a, b) => a.chunk_info!.number - b.chunk_info!.number);
+  complete.push({ seq: parts[parts.length - 1].sequence_number, text: parts.map((x) => Buffer.from(x.message, "base64").toString("utf8")).join("") });
+}
+const committed = complete
+  .sort((a, b) => b.seq - a.seq)
+  .map((m) => ({ seq: m.seq, ev: safeJson(m.text) }))
   .find((m) => m.ev?.type === "notice-commitment" && m.ev.facilityId === released.facilityId && m.ev.periodId === released.periodId);
 if (!committed) throw new Error(`no notice-commitment for ${released.facilityId} period ${released.periodId} on topic ${topic}`);
 if (String(committed.ev.commitment).toLowerCase() !== released.commitment.toLowerCase()) {
@@ -93,23 +108,34 @@ const mint = await new TokenMintTransaction().setTokenId(usd).setAmount(total).s
 const mintRc = await mint.getReceipt(client);
 console.log(`minted ${fmt(total)} mUSD to the paying agent: ${mintRc.status} ${mint.transactionId}`);
 
-// 4. One atomic HTS transfer: every holder is credited or none is.
-const xfer = new TransferTransaction().setTransactionMemo(memo).setMaxTransactionFee(new Hbar(5)).addTokenTransfer(usd, operatorId(), -Number(total));
-for (const p of paid) xfer.addTokenTransfer(usd, AccountId.fromString(p.accountId), Number(BigInt(p.amountUnits)));
-const tx = await xfer.execute(client);
-const rc = await tx.getReceipt(client);
-const transactionId = tx.transactionId.toString();
-const hashscanTx = `${HASHSCAN}/transaction/${transactionId.replace(/^(0\.0\.\d+)@(\d+)\.(\d+)$/, "$1-$2-$3")}`; // HashScan uses the 0.0.x-sec-nanos form
-console.log(`interest paid: ${rc.status} ${hashscanTx}`);
+// 4. Atomic HTS transfers: within a transaction every holder is credited or none is. Hedera caps the number
+//    of token-transfer entries per transaction, so large holder lists are paid in batches of BATCH credits.
+const BATCH = 9;
+const toHashscan = (id: string) => `${HASHSCAN}/transaction/${id.replace(/^(0\.0\.\d+)@(\d+)\.(\d+)$/, "$1-$2-$3")}`; // HashScan uses the 0.0.x-sec-nanos form
+const batches: { transactionId: string; hashscan: string; holders: number; units: string }[] = [];
+for (let i = 0; i < paid.length; i += BATCH) {
+  const slice = paid.slice(i, i + BATCH);
+  const sum = slice.reduce((a, p) => a + BigInt(p.amountUnits), 0n);
+  const xfer = new TransferTransaction().setTransactionMemo(memo).setMaxTransactionFee(new Hbar(5)).addTokenTransfer(usd, operatorId(), -Number(sum));
+  for (const p of slice) xfer.addTokenTransfer(usd, AccountId.fromString(p.accountId), Number(BigInt(p.amountUnits)));
+  const tx = await xfer.execute(client);
+  const rc = await tx.getReceipt(client);
+  const id = tx.transactionId.toString();
+  batches.push({ transactionId: id, hashscan: toHashscan(id), holders: slice.length, units: sum.toString() });
+  console.log(`batch ${batches.length}: ${rc.status} ${slice.length} holders ${fmt(sum)} mUSD ${toHashscan(id)}`);
+}
+const transactionId = batches[0].transactionId;
+const hashscanTx = batches[0].hashscan;
+console.log(`interest paid to ${paid.length} holders in ${batches.length} transaction(s)`);
 
 // 5. Receipt on the notices topic (public: who was paid how much, against which commitment) and evidence files.
-const receipt = { v: 1, at: Date.now(), type: "interest-payout", facilityId: released.facilityId, periodId: released.periodId, commitment: released.commitment, transactionId, totalPaidUnits: total.toString(), paid, skipped };
+const receipt = { v: 1, at: Date.now(), type: "interest-payout", facilityId: released.facilityId, periodId: released.periodId, commitment: released.commitment, transactionId, batches: batches.map((b) => b.transactionId), totalPaidUnits: total.toString(), paid: paid.length, skipped };
 const pub = await new TopicMessageSubmitTransaction().setTopicId(TopicId.fromString(topic)).setMessage(JSON.stringify(receipt)).execute(client);
 const pubRc = await pub.getReceipt(client);
 const hcs = { sequence: pubRc.topicSequenceNumber?.toNumber() ?? 0, transactionId: pub.transactionId.toString() };
 console.log(`payout receipt published: HCS #${hcs.sequence} ${HASHSCAN}/topic/${topic}`);
 
-const evidence = { ranAt: Date.now(), facilityId: released.facilityId, periodId: released.periodId, commitment: released.commitment, mintTransactionId: mint.transactionId.toString(), transactionId, hashscan: hashscanTx, totalPaidUnits: total.toString(), paid, skipped, hcs };
+const evidence = { ranAt: Date.now(), facilityId: released.facilityId, periodId: released.periodId, commitment: released.commitment, mintTransactionId: mint.transactionId.toString(), transactionId, hashscan: hashscanTx, batches, totalPaidUnits: total.toString(), paid, skipped, hcs };
 fs.mkdirSync(evidenceDir, { recursive: true });
 fs.writeFileSync(path.join(evidenceDir, "payout.json"), JSON.stringify(evidence, null, 2) + "\n");
 writeDeployments((d) => {

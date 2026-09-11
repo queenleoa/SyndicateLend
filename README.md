@@ -27,7 +27,7 @@ The comparison table is in [HACKATHON-PRD.md §2.5](HACKATHON-PRD.md#25-why-this
 
 ## Judging without a Privy login
 
-The browser flow needs Privy institutions provisioned locally (`web/data/` is gitignored because it holds member emails). Every on-chain claim below is reproducible without it from the `ops/` scripts against the committed ids in `ops/deployments/testnet.json`, and every artefact links to HashScan. CI runs the 19 Foundry tests, `tsc --noEmit` for ops and web, and eslint on each push.
+The browser flow needs Privy institutions provisioned locally (`web/data/` is gitignored because it holds member emails). Every on-chain claim below is reproducible without it from the `ops/` scripts against the committed ids in `ops/deployments/testnet.json`, and every artefact links to HashScan. CI runs the 21 Foundry tests, `tsc --noEmit` for ops and web, and eslint on each push.
 
 ## Live on Hedera testnet (Day 1, 2026-09-10)
 
@@ -39,6 +39,7 @@ The browser flow needs Privy institutions provisioned locally (`web/data/` is gi
 | HCS RFQ topic | `0.0.10459663` | [HashScan](https://hashscan.io/testnet/topic/0.0.10459663) |
 | HCS notice-commitment topic | `0.0.10459666` | [HashScan](https://hashscan.io/testnet/topic/0.0.10459666) |
 | Administrative agent | `0.0.10457020` | [HashScan](https://hashscan.io/testnet/account/0.0.10457020) |
+| RegisterSnapshot (one-call holder balances for the enclave) | `0x33687eBC6C3f8A89DbE60ADc3E631149dA6E0690` | [HashScan](https://hashscan.io/testnet/contract/0x33687eBC6C3f8A89DbE60ADc3E631149dA6E0690) |
 
 ### Settlement evidence (Day 2 core, same day)
 
@@ -59,6 +60,7 @@ Three eligible lenders hold the tranche (seller 150m par, holder 100m par, buyer
 | `ops/` | Administrative-agent scripts (ATS SDK + Hedera SDK): issuance, KYC, allocation, mock USD, HCS topics |
 | `ops/deployments/testnet.json` | Addresses and ids written by the scripts (committed so judges can inspect) |
 | `ops/samples/`, `ops/reports/`, `ops/exports/` | Agent register export sample, reconciliation reports and assignment exports produced by the integration adapters |
+| `ops/src/feeder-demo.ts` | Retail feeder holders on public testnet (account driver); keys in gitignored `ops/.feeder-keys.json` |
 | `web/` | Institutional web app (Day 3) |
 | `cre/` | Chainlink CRE confidential workflow (Day 4); `cre/evidence/` holds the sanitised simulation results, released distribution and payout receipt |
 | `docs/` | Validation record, Lean Canvas, Privy dashboard settings |
@@ -167,11 +169,11 @@ Dashboard settings that complete the B2B setup (allowlist, MFA, login methods, a
 
 ## Confidential interest calculation with Chainlink CRE (Day 4)
 
-`cre/interest-accrual` is a CRE Confidential Workflow (TypeScript, `handlerInTee`). The agent commits a salted hash of its private rate notice to the HCS notices topic; inside the enclave the workflow fetches the notice with a Vault DON secret, verifies it against the commitment, reads holder balances from the ATS register, and reports only the per-holder distribution. A tampered notice aborts the run. See [cre/README.md](cre/README.md).
+`cre/interest-accrual` is a CRE Confidential Workflow (TypeScript, `handlerInTee`). The agent commits a salted hash of its private rate notice to the HCS notices topic; inside the enclave the workflow fetches the notice with a Vault DON secret, verifies it against the commitment, reads every holder's balance from the ATS register in one call through `RegisterSnapshot`, and reports only the per-holder distribution. A tampered notice aborts the run. The enclave makes three HTTP requests per period regardless of holder count (topic, notice, snapshot), and reassembles HCS messages that the network chunked above 1,024 bytes. See [cre/README.md](cre/README.md).
 
 ### Interest payout (FR-12)
 
-`npm run demo:cre` now also captures the workflow's *released* output (commitment, period, holders, amounts; no rate, basis or nonce) in `cre/evidence/distribution.json`. `npm run demo:payout` (`ops/src/pay-interest.ts`) checks that commitment against the HCS notices topic, checks each holder can receive mock USD, mints the period's interest to the paying agent (the borrower's payment, modelled on the test token), credits every eligible holder in **one atomic HTS transfer**, and publishes an `interest-payout` receipt on the notices topic. Run on testnet for period 2 (7.25%, 30 days, five-holder snapshot):
+`npm run demo:cre` also captures the workflow's *released* output (commitment, period, holders, amounts; no rate, basis or nonce) in `cre/evidence/distribution.json`. `npm run demo:payout` (`ops/src/pay-interest.ts`) checks that commitment against the HCS notices topic, checks each holder can receive mock USD, mints the period's interest to the paying agent (the borrower's payment, modelled on the test token), credits eligible holders in **atomic HTS transfers of up to nine credits each** (the network's per-transaction cap), and publishes an `interest-payout` receipt on the notices topic. First run on testnet for period 2 (7.25%, 30 days, five-holder snapshot):
 
 | Step | Evidence |
 |---|---|
@@ -182,7 +184,9 @@ Dashboard settings that complete the B2B setup (allowlist, MFA, login methods, a
 | Atomic payout, 3 holders, 906,249.99 mUSD | [0.0.10457020-1789160134-460654518](https://hashscan.io/testnet/transaction/0.0.10457020-1789160134-460654518): Meridian 241,666.66, Halcyon 60,416.66, Northgate 604,166.66 |
 | Payout receipt | [HCS #3 on 0.0.10459666](https://hashscan.io/testnet/topic/0.0.10459666), lists paid and skipped holders |
 
-Two holders were skipped with the reason on the receipt: the Halcyon Privy desk wallet holds no par, and the Meridian Privy desk wallet's mock-USD association intent has not been executed by its quorum yet. This is the PRD's disclosed fallback (batched HTS transfers signed by the paying agent) rather than an on-chain `InterestDistributor` consuming a DON-signed report. In production the intended replacement is ATS corporate actions and Mass Payout driven by the DON-signed distribution, which keeps the payout inside the security's own lifecycle controls.
+Second run for period 3, after 25 retail feeder holders joined the register (see "Retail feeder holders on public testnet" below): 30-holder snapshot in one enclave call, 28 holders paid in four atomic batches, commitment at [HCS #5–6](https://hashscan.io/testnet/topic/0.0.10459666) (chunked by the network above 1,024 bytes), receipt at HCS #8. Batch links: [1](https://hashscan.io/testnet/transaction/0.0.10457020-1789166208-497320803), [2](https://hashscan.io/testnet/transaction/0.0.10457020-1789166209-592044415), [3](https://hashscan.io/testnet/transaction/0.0.10457020-1789166207-312099538), [4](https://hashscan.io/testnet/transaction/0.0.10457020-1789166210-911781675). Each feeder holder received 6.04 mUSD on 1,000 par.
+
+Two holders were skipped in both runs with the reason on the receipt: the Halcyon Privy desk wallet holds no par, and the Meridian Privy desk wallet's mock-USD association intent has not been executed by its quorum yet. This is the PRD's disclosed fallback (batched HTS transfers signed by the paying agent) rather than an on-chain `InterestDistributor` consuming a DON-signed report. In production the intended replacement is ATS corporate actions and Mass Payout driven by the DON-signed distribution, which keeps the payout inside the security's own lifecycle controls.
 
 ### Lifecycle controls (FR-15)
 
@@ -252,6 +256,29 @@ Three consequences for the network:
 
 That is why the network's gain here is institutional accounts, institutional cash and institutional collateral with the same transaction shape on HashSphere, rather than TPS.
 
+### Retail on public Hedera, institutions on HashSphere
+
+The intended production topology has two layers with one transaction shape:
+
+- **Institutional core on HashSphere.** The agent's register, the RFQ market and settlement between institutions run on a private Hedera network, because lender positions, prices and facility terms cannot be public.
+- **Retail holders on public Hedera.** Feeder vehicles that pass a lender position through to many holders need public custody, public transferability and public-network accounts. Their holders live on Hedera mainnet, and the feeder is the bridge: it is one institutional lender on the HashSphere register and the issuer of many small positions on the public network.
+
+Public-network account and transaction growth therefore comes from the retail layer, and it ships in this repository: the section below onboarded 25 feeder holders on public testnet and paid them.
+
+### Retail feeder holders on public testnet
+
+`npm run demo:feeder -- --holders 25 --par 1000` (`ops/src/feeder-demo.ts`) creates feeder holders as real public-network accounts and register positions, with the same controls as the institutional lenders: alias funding creates the account, mock-USD association and KYC, ATS whitelist and internal KYC, then a compliance-checked transfer of par from the feeder (Northgate Insurance acts as the pass-through vehicle). Holder keys stay local and gitignored; addresses and account ids are in `ops/deployments/testnet.json` under `feeder`.
+
+| Measure | Result |
+|---|---|
+| Holders onboarded | 25 public testnet accounts, first [0.0.10486330](https://hashscan.io/testnet/account/0.0.10486330) |
+| Transactions | 150 in 753 s (6 per holder: fund, associate, KYC, whitelist, ATS KYC, transfer) |
+| Accrual (period 3) | 30-holder snapshot in one enclave call via `RegisterSnapshot`; 1,510,416.67 mUSD computed; tampered notice rejected |
+| Payout | 28 holders in 4 atomic HTS batches (receipt HCS #8); 6.04 mUSD per feeder holder on 1,000 par at 7.25% for 30 days |
+| Reconciliation | the agent's book carries the feeder as one line of 25,000 par; the register shows 25 positions; AGREES (attested HCS #7) |
+
+So the account driver is code, not a scenario: each additional retail holder is one more public-network account, six onboarding transactions, and one payout credit per period. What follows scales that up.
+
 ### Extension to retail accounts
 
 The same register extends to many more accounts without new mechanisms. Once a tranche is an ATS position with atomic settlement and confidential accrual, a regulated feeder (fund units or participations issued against the register, for qualified investors and, where a jurisdiction permits, retail investors) can hold a lender position and pass it through to its own holders on the same ledger:
@@ -260,7 +287,7 @@ The same register extends to many more accounts without new mechanisms. Once a t
 - the accrual workflow already computes a per-holder distribution from the register snapshot; a feeder simply makes the holder list longer, and ATS Mass Payout is the intended production path;
 - the RFQ market and the engine are unchanged, because the feeder is one lender on the register.
 
-Labelled scenario, not part of the build: if one in ten facilities at Versana scale has a feeder with 5,000 holders, that is 150 feeders, 750,000 KYC-gated accounts, and 750,000 HTS interest transfers a month (9m a year, about 0.3 TPS sustained with monthly peaks). If a feeder holds a US$30m position (5% of the US$600m facility), each holder's monthly transfer is about US$36 at 7.25%; at a US$120m position it is about US$145. Account creation and throughput then grow with holders rather than with facilities, on top of the institutional collateral pool above. India is the natural first case: the same banks that expressed interest run large retail franchises, and SLMA's mandate is to widen participation in the loan market.
+Labelled scenario, extrapolating the feeder demo above: if one in ten facilities at Versana scale has a feeder with 5,000 holders, that is 150 feeders, 750,000 KYC-gated accounts, and 750,000 HTS interest transfers a month (9m a year, about 0.3 TPS sustained with monthly peaks). If a feeder holds a US$30m position (5% of the US$600m facility), each holder's monthly transfer is about US$36 at 7.25%; at a US$120m position it is about US$145. Account creation and throughput then grow with holders rather than with facilities, on top of the institutional collateral pool above. India is the natural first case: the same banks that expressed interest run large retail franchises, and SLMA's mandate is to widen participation in the loan market.
 
 ## Disclosure
 
@@ -269,5 +296,5 @@ Testnet activity is a technical demonstration with synthetic data. Tokens do not
 - **CRE** runs in the local simulator, not a deployed enclave (Confidential Workflows is in private beta; enrolment has been requested). The UI reads sanitised evidence files that the demo scripts write.
 - **Interest payout** is a paying-agent batch of HTS transfers driven by the workflow's released output, not an on-chain distributor consuming a DON-signed report.
 - **Persistence** in the web app is a JSON file store.
-- **Two Privy desk wallets** in the period-2 snapshot have not executed their mock-USD association intent, so they were skipped by the payout with the reason recorded on HCS.
+- **Two Privy desk wallets** in the period-2 and period-3 snapshots have not executed their mock-USD association intent, so they were skipped by the payout with the reason recorded on HCS.
 - **RFQ payloads** are plain text on the public topic (FR-16 not done).

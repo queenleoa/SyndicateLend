@@ -1,14 +1,14 @@
 {
   "valid": {
-    "ranAt": 1789160032191,
+    "ranAt": 1789166189154,
     "status": "verified",
-    "summary": "Commitment matched; accrual report generated for 5 holders over 30 days.",
-    "periodId": 2,
-    "holders": 5,
-    "totalUnits": "1510416666664"
+    "summary": "Commitment matched; accrual report generated for 30 holders over 30 days.",
+    "periodId": 3,
+    "holders": 30,
+    "totalUnits": "1510416666648"
   },
   "tamper": {
-    "ranAt": 1789160032191,
+    "ranAt": 1789166189154,
     "status": "rejected",
     "summary": "Altered private notice rejected before any output crossed the TEE boundary."
   }

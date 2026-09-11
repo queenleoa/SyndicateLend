@@ -22,7 +22,8 @@
     "pay-interest": "tsx src/pay-interest.ts",
     "freeze-demo": "tsx src/freeze-demo.ts",
     "reconcile": "tsx src/reconcile-register.ts",
-    "export-assignments": "tsx src/export-assignments.ts"
+    "export-assignments": "tsx src/export-assignments.ts",
+    "feeder": "tsx src/feeder-demo.ts"
   },
   "dependencies": {
     "@hashgraph/asset-tokenization-sdk": "^8.0.0",

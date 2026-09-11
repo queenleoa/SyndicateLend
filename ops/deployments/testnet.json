@@ -162,6 +162,198 @@
         "sequence": 3,
         "transactionId": "0.0.10457020@1789160136.445344678"
       }
+    },
+    {
+      "ranAt": 1789166220036,
+      "facilityId": "MHTLB-A",
+      "periodId": 3,
+      "commitment": "0x5f7386ca0b7306c7cb79c0d91996ae0435b3f9a73fdf926cfaa64595935c8fa1",
+      "mintTransactionId": "0.0.10457020@1789166206.071772983",
+      "transactionId": "0.0.10457020@1789166208.497320803",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789166208-497320803",
+      "batches": [
+        {
+          "transactionId": "0.0.10457020@1789166208.497320803",
+          "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789166208-497320803",
+          "holders": 9,
+          "units": "906135208328"
+        },
+        {
+          "transactionId": "0.0.10457020@1789166209.592044415",
+          "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789166209-592044415",
+          "holders": 9,
+          "units": "54374994"
+        },
+        {
+          "transactionId": "0.0.10457020@1789166207.312099538",
+          "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789166207-312099538",
+          "holders": 9,
+          "units": "54374994"
+        },
+        {
+          "transactionId": "0.0.10457020@1789166210.911781675",
+          "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789166210-911781675",
+          "holders": 1,
+          "units": "6041666"
+        }
+      ],
+      "totalPaidUnits": "906249999982",
+      "paid": [
+        {
+          "holder": "0xe4691b01dfbb6c3022c9c1b82521999bf9c2797e",
+          "accountId": "0.0.10459771",
+          "amountUnits": "241666666666"
+        },
+        {
+          "holder": "0x8ce724550b8608d6ade9d05f903f0657fc9f46c5",
+          "accountId": "0.0.10459773",
+          "amountUnits": "60416666666"
+        },
+        {
+          "holder": "0x2f513e82c82de59700a731a44c37835009b95391",
+          "accountId": "0.0.10459776",
+          "amountUnits": "604015625000"
+        },
+        {
+          "holder": "0xdc0a4eb1d87e868ce03ccdc9896d67c5c628dffa",
+          "accountId": "0.0.10486330",
+          "amountUnits": "6041666"
+        },
+        {
+          "holder": "0x099319a3c0a5aba535010d349fbbfc39f1681802",
+          "accountId": "0.0.10486339",
+          "amountUnits": "6041666"
+        },
+        {
+          "holder": "0x250106a60a6fe3639e0b040c0f6639a4e91afdcd",
+          "accountId": "0.0.10486349",
+          "amountUnits": "6041666"
+        },
+        {
+          "holder": "0x1a0c804a1503eb0ad5760d16b3b0addea3530aa3",
+          "accountId": "0.0.10486360",
+          "amountUnits": "6041666"
+        },
+        {
+          "holder": "0x995a5d6bb9cfb9447469b93d69e5e0845657b037",
+          "accountId": "0.0.10486374",
+          "amountUnits": "6041666"
+        },
+        {
+          "holder": "0x5d8a77a2d05e5ce2719b4923bec477741aa761ae",
+          "accountId": "0.0.10486383",
+          "amountUnits": "6041666"
+        },
+        {
+          "holder": "0x147317dbd2a51ad8b3b5b56a118f08585abd21bb",
+          "accountId": "0.0.10486397",
+          "amountUnits": "6041666"
+        },
+        {
+          "holder": "0x874184d4983511efc4162ce5810b6998db1f4e14",
+          "accountId": "0.0.10486407",
+          "amountUnits": "6041666"
+        },
+        {
+          "holder": "0x7c4009d01a89ecaa69935303d13363515e0e8f53",
+          "accountId": "0.0.10486423",
+          "amountUnits": "6041666"
+        },
+        {
+          "holder": "0x61c74a9431130a30d9cba411de0f822dea601021",
+          "accountId": "0.0.10486445",
+          "amountUnits": "6041666"
+        },
+        {
+          "holder": "0xbe534b033ed5de0f5b1ecca7fb6f3ef7eb0f0a91",
+          "accountId": "0.0.10486458",
+          "amountUnits": "6041666"
+        },
+        {
+          "holder": "0xe3610584e8a6b7d09758a01a3e434ef2d3866557",
+          "accountId": "0.0.10486464",
+          "amountUnits": "6041666"
+        },
+        {
+          "holder": "0xa486e6a3a21763c0c223979fa2d3daf80302a201",
+          "accountId": "0.0.10486471",
+          "amountUnits": "6041666"
+        },
+        {
+          "holder": "0x55137d98dca4472df28e3a91f9f1283afec9203c",
+          "accountId": "0.0.10486482",
+          "amountUnits": "6041666"
+        },
+        {
+          "holder": "0xbb36336c42a3cdaee0996987b5fb0575d75b4c77",
+          "accountId": "0.0.10486493",
+          "amountUnits": "6041666"
+        },
+        {
+          "holder": "0x0ca9f7d696238c34c78b797e269b2237083ec96f",
+          "accountId": "0.0.10486501",
+          "amountUnits": "6041666"
+        },
+        {
+          "holder": "0xe50c3f493349f9653ea4397e3d084502e9212282",
+          "accountId": "0.0.10486513",
+          "amountUnits": "6041666"
+        },
+        {
+          "holder": "0x998ba26755385c8a4dfe8acbe814875794e44129",
+          "accountId": "0.0.10486522",
+          "amountUnits": "6041666"
+        },
+        {
+          "holder": "0x20416989d3a5441aab5b2e0f5d020e680e561cd9",
+          "accountId": "0.0.10486531",
+          "amountUnits": "6041666"
+        },
+        {
+          "holder": "0x1a9f603ce943b926f2496402c3f98d69d4011095",
+          "accountId": "0.0.10486537",
+          "amountUnits": "6041666"
+        },
+        {
+          "holder": "0x554169fbd8f9a1e2b2b52d2c89f205c5b3cd8f63",
+          "accountId": "0.0.10486548",
+          "amountUnits": "6041666"
+        },
+        {
+          "holder": "0x6f30cb48d59d7b9abb0b58d3447a128f3fd8491a",
+          "accountId": "0.0.10486559",
+          "amountUnits": "6041666"
+        },
+        {
+          "holder": "0xe60c34b30b38a23a7e5fc6f24fc2514fac0ee35d",
+          "accountId": "0.0.10486565",
+          "amountUnits": "6041666"
+        },
+        {
+          "holder": "0x5a7e59056af74ae6631f9280b4b7a01b00f327ff",
+          "accountId": "0.0.10486583",
+          "amountUnits": "6041666"
+        },
+        {
+          "holder": "0xa1b9ac6d594661366e5d37473911ab01d6c4be4f",
+          "accountId": "0.0.10486592",
+          "amountUnits": "6041666"
+        }
+      ],
+      "skipped": [
+        {
+          "holder": "0x9c2e3a418d90d9c6fd7f3c417ec5730a3e65498b",
+          "reason": "no par in the register snapshot"
+        },
+        {
+          "holder": "0xa6be8bbdc1175538349e745ff7ab4a0f9d5cb2fb",
+          "reason": "mock USD not associated (desk quorum has not executed the association intent)"
+        }
+      ],
+      "hcs": {
+        "sequence": 8,
+        "transactionId": "0.0.10457020@1789166214.899319971"
+      }
     }
   ],
   "lifecycleControls": {
@@ -170,5 +362,192 @@
     "usdPausedTransfer": "TOKEN_IS_PAUSED 0.0.10457020@1789160146.977861526",
     "usdRestoredTransfer": "SUCCESS",
     "loanPausedTransfer": "reverted 0xcb197f185623af441dda00ca2d87d0427ea8f962c128b4968a3406a7cf917092"
+  },
+  "feeder": {
+    "name": "Northgate Insurance",
+    "source": "0x2f513e82c82de59700a731a44c37835009b95391",
+    "parPerHolder": "1000",
+    "holders": [
+      {
+        "evmAddress": "0xdc0a4eb1d87e868ce03ccdc9896d67c5c628dffa",
+        "accountId": "0.0.10486330",
+        "par": "1000",
+        "fundTx": "0.0.10457020@1789165220.281957373",
+        "transferTx": "0xe7bda521032f0ee54460748a88ebe0b69e186bb62185574d1b4a0ff423c5dd81"
+      },
+      {
+        "evmAddress": "0x099319a3c0a5aba535010d349fbbfc39f1681802",
+        "accountId": "0.0.10486339",
+        "par": "1000",
+        "fundTx": "0.0.10457020@1789165248.272536014",
+        "transferTx": "0x5b0759bc89466c3db2f4938d2fe6d1d1a602287d4299f471140cd72a51316b70"
+      },
+      {
+        "evmAddress": "0x250106a60a6fe3639e0b040c0f6639a4e91afdcd",
+        "accountId": "0.0.10486349",
+        "par": "1000",
+        "fundTx": "0.0.10457020@1789165278.875419769",
+        "transferTx": "0x0198b3f1d14daea47517aeed207676672796df5b5b79ebeed6e2f863d78f42d6"
+      },
+      {
+        "evmAddress": "0x1a0c804a1503eb0ad5760d16b3b0addea3530aa3",
+        "accountId": "0.0.10486360",
+        "par": "1000",
+        "fundTx": "0.0.10457020@1789165312.458358080",
+        "transferTx": "0xf49149254d20431b0a4ef6773797161603f5b31cf445ec420708b474900c5093"
+      },
+      {
+        "evmAddress": "0x995a5d6bb9cfb9447469b93d69e5e0845657b037",
+        "accountId": "0.0.10486374",
+        "par": "1000",
+        "fundTx": "0.0.10457020@1789165335.795242644",
+        "transferTx": "0xde00865fc222e009d83f01ca4078f19525c4aae5737cd0f21e182225dcee2aff"
+      },
+      {
+        "evmAddress": "0x5d8a77a2d05e5ce2719b4923bec477741aa761ae",
+        "accountId": "0.0.10486383",
+        "par": "1000",
+        "fundTx": "0.0.10457020@1789165365.724005530",
+        "transferTx": "0x3632f07e6849dc466b9e5422c3df20e7f396c2830e99a5aea9eee1b7a510bb2b"
+      },
+      {
+        "evmAddress": "0x147317dbd2a51ad8b3b5b56a118f08585abd21bb",
+        "accountId": "0.0.10486397",
+        "par": "1000",
+        "fundTx": "0.0.10457020@1789165395.070925866",
+        "transferTx": "0x98c423cd4718ccba724df01f69de0e3ae3e867d14c2e717a08f72cc36ec00167"
+      },
+      {
+        "evmAddress": "0x874184d4983511efc4162ce5810b6998db1f4e14",
+        "accountId": "0.0.10486407",
+        "par": "1000",
+        "fundTx": "0.0.10457020@1789165427.779976738",
+        "transferTx": "0x402b5d25d3ce8807afe0db6619cdc2be1512f2f172ee6ea4cb80cb1cc8188f26"
+      },
+      {
+        "evmAddress": "0x7c4009d01a89ecaa69935303d13363515e0e8f53",
+        "accountId": "0.0.10486423",
+        "par": "1000",
+        "fundTx": "0.0.10457020@1789165454.397766439",
+        "transferTx": "0x5b203f0d823eea36ee4bc88e7d575d3e14f2cb0e2467ce757fd233cdfcf8ab6d"
+      },
+      {
+        "evmAddress": "0x61c74a9431130a30d9cba411de0f822dea601021",
+        "accountId": "0.0.10486445",
+        "par": "1000",
+        "fundTx": "0.0.10457020@1789165483.744711266",
+        "transferTx": "0x3443bdcfabe2ae06ad4100412122c7eaf15ff1f80b733e2d1fb85bb012a385b4"
+      },
+      {
+        "evmAddress": "0xbe534b033ed5de0f5b1ecca7fb6f3ef7eb0f0a91",
+        "accountId": "0.0.10486458",
+        "par": "1000",
+        "fundTx": "0.0.10457020@1789165514.008141472",
+        "transferTx": "0x7a609eb99ef6568e89514cce19d78fb6ab9b75a9affcadffee580109b0f1601e"
+      },
+      {
+        "evmAddress": "0xe3610584e8a6b7d09758a01a3e434ef2d3866557",
+        "accountId": "0.0.10486464",
+        "par": "1000",
+        "fundTx": "0.0.10457020@1789165545.263196483",
+        "transferTx": "0xff050cd09d419eb835139baec96adbe610e63d9dd47e64beff4f673e15e575a8"
+      },
+      {
+        "evmAddress": "0xa486e6a3a21763c0c223979fa2d3daf80302a201",
+        "accountId": "0.0.10486471",
+        "par": "1000",
+        "fundTx": "0.0.10457020@1789165579.431699305",
+        "transferTx": "0x19a13acecb22b5b751ddda12e8d28ebf2fc046c01de7edf593317d6dd6f19765"
+      },
+      {
+        "evmAddress": "0x55137d98dca4472df28e3a91f9f1283afec9203c",
+        "accountId": "0.0.10486482",
+        "par": "1000",
+        "fundTx": "0.0.10457020@1789165608.985369038",
+        "transferTx": "0xf085ace5a880605078c6750da1601d982675f563c8cd8bc1e8a28e9e4209f37b"
+      },
+      {
+        "evmAddress": "0xbb36336c42a3cdaee0996987b5fb0575d75b4c77",
+        "accountId": "0.0.10486493",
+        "par": "1000",
+        "fundTx": "0.0.10457020@1789165637.146868645",
+        "transferTx": "0x64ba49e0ff91789eedd9d3887622df35cbd69d7175eb7db0272ef416ba142bca"
+      },
+      {
+        "evmAddress": "0x0ca9f7d696238c34c78b797e269b2237083ec96f",
+        "accountId": "0.0.10486501",
+        "par": "1000",
+        "fundTx": "0.0.10457020@1789165668.797963124",
+        "transferTx": "0x23f898dafbe63d0b542f002db111a170fa22cdfe0450790e2d1d556dae18293b"
+      },
+      {
+        "evmAddress": "0xe50c3f493349f9653ea4397e3d084502e9212282",
+        "accountId": "0.0.10486513",
+        "par": "1000",
+        "fundTx": "0.0.10457020@1789165704.408445519",
+        "transferTx": "0x7eaf99b706fe29901f08cb9da31a51fb35752e3ac104b8361ffe61a83c750110"
+      },
+      {
+        "evmAddress": "0x998ba26755385c8a4dfe8acbe814875794e44129",
+        "accountId": "0.0.10486522",
+        "par": "1000",
+        "fundTx": "0.0.10457020@1789165729.808053048",
+        "transferTx": "0xf67dd0f5d14e34f17fe0b05ab5a91edb4c66f09d7502ee8e68caba57ba0736b9"
+      },
+      {
+        "evmAddress": "0x20416989d3a5441aab5b2e0f5d020e680e561cd9",
+        "accountId": "0.0.10486531",
+        "par": "1000",
+        "fundTx": "0.0.10457020@1789165761.878589830",
+        "transferTx": "0xa38044e3b6c54853e4f4b70f1b87bc7fd790f325cf02b836ed50348ec0b41af7"
+      },
+      {
+        "evmAddress": "0x1a9f603ce943b926f2496402c3f98d69d4011095",
+        "accountId": "0.0.10486537",
+        "par": "1000",
+        "fundTx": "0.0.10457020@1789165789.102592723",
+        "transferTx": "0x7a9fde37ac87a31a42f8878bc32245a4e2edf200376a66c7111a735d79a26480"
+      },
+      {
+        "evmAddress": "0x554169fbd8f9a1e2b2b52d2c89f205c5b3cd8f63",
+        "accountId": "0.0.10486548",
+        "par": "1000",
+        "fundTx": "0.0.10457020@1789165819.009764476",
+        "transferTx": "0xda58fea878a7a2e57432368d2559d5fca5e23e84b9cb0aed9e1c903992b812b1"
+      },
+      {
+        "evmAddress": "0x6f30cb48d59d7b9abb0b58d3447a128f3fd8491a",
+        "accountId": "0.0.10486559",
+        "par": "1000",
+        "fundTx": "0.0.10457020@1789165846.781119244",
+        "transferTx": "0xf1a016ec48db5edef804bcbd6cc62819e9a19e0c073bcbfba3152d578598f820"
+      },
+      {
+        "evmAddress": "0xe60c34b30b38a23a7e5fc6f24fc2514fac0ee35d",
+        "accountId": "0.0.10486565",
+        "par": "1000",
+        "fundTx": "0.0.10457020@1789165876.451608734",
+        "transferTx": "0xc8f52176addc049ffcc7f4c87048f71e36cff47476e212aac384f25ab553d6a9"
+      },
+      {
+        "evmAddress": "0x5a7e59056af74ae6631f9280b4b7a01b00f327ff",
+        "accountId": "0.0.10486583",
+        "par": "1000",
+        "fundTx": "0.0.10457020@1789165909.402730206",
+        "transferTx": "0xdfa79fcb75e3ea6336a2edcda1006a4728d19e7a0528f8077ee7417fd821c427"
+      },
+      {
+        "evmAddress": "0xa1b9ac6d594661366e5d37473911ab01d6c4be4f",
+        "accountId": "0.0.10486592",
+        "par": "1000",
+        "fundTx": "0.0.10457020@1789165936.063119876",
+        "transferTx": "0x2352d4fcc90958523ab6ae109b323f67b1915c4737275738a7b2033714adb099"
+      }
+    ],
+    "updatedAt": "2026-09-11T22:32:56.925Z"
+  },
+  "registerSnapshot": {
+    "address": "0x33687eBC6C3f8A89DbE60ADc3E631149dA6E0690",
+    "deployTx": "0x9f7cc70714b427891d57c0aa67efde20b27e3883783108b923430394fcf3405b"
   }
 }

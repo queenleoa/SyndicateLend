@@ -44,9 +44,18 @@ const byName = new Map((dep.institutions ?? []).map((i) => [i.name.toLowerCase()
 
 type Line = { lender: string; lei: string; wallet: string | null; book: string; register: string; difference: string; status: "AGREES" | "BREAK" | "UNMAPPED" };
 const lines: Line[] = [];
+const feederHolders = ((dep.feeder as { holders?: { evmAddress: string }[] } | undefined)?.holders ?? []).map((h) => h.evmAddress.toLowerCase());
 for (const r of rows) {
-  const wallet = (r.lender_wallet || byName.get(r.lender_name.toLowerCase()) || null)?.toLowerCase() ?? null;
   const book = BigInt(r.commitment_usd);
+  if (r.lender_wallet === "feeder") {
+    // The agent's book carries the feeder's pass-through as one line; on the register it is many small positions.
+    let register = 0n;
+    for (const h of feederHolders) register += (await loan.getFunction("balanceOf")(h)) as bigint;
+    const diff = register - book;
+    lines.push({ lender: `${r.lender_name} (${feederHolders.length} pass-through holders)`, lei: r.lender_lei, wallet: "feeder", book: book.toString(), register: register.toString(), difference: diff.toString(), status: diff === 0n ? "AGREES" : "BREAK" });
+    continue;
+  }
+  const wallet = (r.lender_wallet || byName.get(r.lender_name.toLowerCase()) || null)?.toLowerCase() ?? null;
   if (!wallet) { lines.push({ lender: r.lender_name, lei: r.lender_lei, wallet: null, book: book.toString(), register: "-", difference: "-", status: "UNMAPPED" }); continue; }
   const register: bigint = await loan.getFunction("balanceOf")(wallet);
   const diff = register - book;

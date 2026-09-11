@@ -43,9 +43,10 @@ export const notices = jsonStore<{ notices: Notice[] }>("notices", { notices: []
 export function registerSnapshot(): string[] {
   const desks = readOrg().institutions.filter((i) => i.wallet).map((i) => i.wallet!.address.toLowerCase());
   const file = path.resolve(process.cwd(), "../ops/deployments/testnet.json");
-  const dep = fs.existsSync(file) ? (JSON.parse(fs.readFileSync(file, "utf8")) as { institutions?: { evmAddress: string; loanEligible?: boolean }[] }) : {};
+  const dep = fs.existsSync(file) ? (JSON.parse(fs.readFileSync(file, "utf8")) as { institutions?: { evmAddress: string; loanEligible?: boolean }[]; feeder?: { holders?: { evmAddress: string }[] } }) : {};
   const lenders = (dep.institutions ?? []).filter((i) => i.loanEligible).map((i) => i.evmAddress.toLowerCase());
-  return [...new Set([...desks, ...lenders])];
+  const feederHolders = (dep.feeder?.holders ?? []).map((h) => h.evmAddress.toLowerCase());
+  return [...new Set([...desks, ...lenders, ...feederHolders])];
 }
 
 export function findNotice(facilityId: string, periodId: number) {
