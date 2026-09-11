@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     const v = venue();
     const allowed = [v.settlementEngine, v.loanToken, v.mockUsd].map((a) => a.toLowerCase());
     if (!allowed.includes(String(body.to).toLowerCase())) throw new HttpError(400, "target is not a settlement venue contract");
-    const intent = await proposeSignTransaction({ walletId: institution.wallet!.id, to: body.to, data: body.data, summary: body.summary });
+    const intent = await proposeSignTransaction({ walletId: institution.wallet!.id, walletAddress: institution.wallet!.address, to: body.to, data: body.data, summary: body.summary });
     return Response.json({ intent });
   } catch (e) {
     return jsonError(e);

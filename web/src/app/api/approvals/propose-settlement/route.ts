@@ -19,6 +19,7 @@ export async function POST(req: Request) {
     const data = engine.encodeFunctionData("approve", [BigInt(tradeId), instructionHash]);
     const intent = await proposeSignTransaction({
       walletId: hit.institution.wallet.id,
+      walletAddress: hit.institution.wallet.address,
       to: venue().settlementEngine,
       data,
       summary: `Approve settlement instruction #${tradeId}`,
