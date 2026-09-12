@@ -21,36 +21,46 @@ export default function Landing() {
       </header>
 
       <section className={s.hero} aria-labelledby="headline">
-        <div className={s.eyebrow}>Institutional credit. Connected.</div>
-        <h1 id="headline">The register, RFQ market and<br className={s.desktopBreak} /> settlement layer for <span>syndicated loans</span></h1>
+        <h1 id="headline">Private RFQ secondary market and<br className={s.desktopBreak} /> register for <span>tokenised syndicated loans</span></h1>
         <h2>Settle in seconds, not weeks.</h2>
-        <p>Tokenise lender positions. Trade through RFQs. Approve as an institution.<br className={s.desktopBreak} /> Exchange loan interests and cash together, with confidential interest calculations.</p>
-        <button className={s.login} disabled={!ready} onClick={() => login()}>Log in <span aria-hidden="true">↗</span></button>
+        <button className={s.login} disabled={!ready} onClick={() => login()} aria-label="Log in with Privy">
+          <span>Log in with</span>
+          <span className={s.loginLogo}><Image src="/integrations/privy.png" alt="Privy" width={128} height={70} /></span>
+        </button>
       </section>
 
       <section className={s.layers} aria-label="Technology powering each layer">
         <article>
-          <div className={s.layerHead}><Image src="/integrations/hedera.svg" alt="Hedera" width={126} height={35} /><span>01 / Asset layer</span></div>
-          <h3>Tokenised positions.<br />Atomic settlement.</h3>
-          <p>Asset Tokenization Studio records lender holdings, enforces eligibility and enables loan tokens to settle against cash.</p>
-          <div className={s.boundary}>On-ledger ownership &amp; transfer controls</div>
+          <div className={s.layerHead}><Image src="/integrations/hedera.svg" alt="Hedera" width={126} height={35} /></div>
+          <h3>Tokenised Issuance and Settlements</h3>
+          <ul>
+            <li>ATS issuance, lender allocation and KYC controls.</li>
+            <li>Atomic loan-token and HTS cash settlement.</li>
+            <li>Network-scheduled execution and HCS audit records.</li>
+          </ul>
         </article>
         <article>
-          <div className={s.layerHead}><div className={s.privy}><Image src="/integrations/privy.png" alt="Privy" width={128} height={70} /></div><span>02 / Authority layer</span></div>
-          <h3>Your institution.<br />Your approval policy.</h3>
-          <p>Privy organisation wallets require two of three authorised members to approve. Every wallet action follows the desk’s policy.</p>
-          <div className={s.boundary}>Member authentication &amp; wallet authorisation</div>
+          <div className={s.layerHead}><div className={s.privy}><Image src="/integrations/privy.png" alt="Privy" width={128} height={70} /></div></div>
+          <h3>Wallets and Institutional policy</h3>
+          <ul>
+            <li>Staff login and quorum-owned institution wallets.</li>
+            <li>Two-of-three member approvals for wallet intents.</li>
+            <li>Signing policies restrict actions to venue contracts.</li>
+          </ul>
         </article>
         <article>
-          <div className={s.layerHead}><Image src="/integrations/chainlink.svg" alt="Chainlink" width={138} height={35} /><span>03 / Privacy layer</span></div>
-          <h3>Private loan terms.<br />Verifiable calculations.</h3>
-          <p>Chainlink CRE processes rate notices inside a confidential handler. Only the commitment and holder payment amounts are released.</p>
-          <div className={s.boundary}>Confidential inputs &amp; interest computation</div>
+          <div className={s.layerHead}><Image src="/integrations/chainlink.svg" alt="Chainlink" width={138} height={35} /></div>
+          <h3>Interest and Loan Term Computation</h3>
+          <ul>
+            <li>Authenticated rate notices in a confidential handler.</li>
+            <li>Commitment checks reject altered loan terms.</li>
+            <li>Per-holder interest from terms and register balances.</li>
+          </ul>
         </article>
       </section>
 
       <footer className={s.footer}>
-        <span className={s.note}>Synthetic assets on public testnet · CRE simulation</span>
+        <a className={s.contact} href="mailto:adrija@fullmetal.finance">adrija@fullmetal.finance</a>
         <a className={s.powered} href="https://fullmetal.finance" target="_blank" rel="noreferrer" aria-label="Powered by fullmetal.finance">
           <span>Powered by</span>
           <Image src="/fullmetal-logo.png" alt="fullmetal.finance" width={1920} height={1080} />
