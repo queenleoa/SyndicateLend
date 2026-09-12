@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="238" viewBox="0 0 900 238" role="img" aria-labelledby="title desc">
+  <title id="title">Par loan settlement times — LSTA, 2021 commentary</title>
+  <desc id="desc">29 percent settle within T+7, 44 percent between T+8 and T+20, and 27 percent later than T+20. T+n means business days after trade date. The middle bucket is calculated as 100 minus 29 minus 27, using rounded source figures.</desc>
+  <rect width="900" height="238" rx="12" fill="#f6f9fc"/>
+  <g font-family="Arial, Helvetica, sans-serif">
+    <text x="28" y="35" font-size="19" font-weight="700" fill="#0a315a">Par loan settlement times</text>
+    <text x="28" y="58" font-size="13" fill="#53677e">Historical snapshot · LSTA, 2021 commentary · Business days after trade date</text>
+    <rect x="28" y="80" width="243.6" height="58" fill="#237b78"/>
+    <rect x="271.6" y="80" width="369.6" height="58" fill="#315b82"/>
+    <rect x="641.2" y="80" width="226.8" height="58" fill="#a94832"/>
+    <g font-size="26" font-weight="700" fill="#ffffff" text-anchor="middle">
+      <text x="149.8" y="118">29%</text>
+      <text x="456.4" y="118">44%</text>
+      <text x="754.6" y="118">27%</text>
+    </g>
+    <g font-size="15" font-weight="700" fill="#0a315a" text-anchor="middle">
+      <text x="149.8" y="164">Within T+7</text>
+      <text x="456.4" y="164">T+8 to T+20</text>
+      <text x="754.6" y="164">Beyond T+20</text>
+    </g>
+    <text x="28" y="199" font-size="13" fill="#53677e">Source: LSTA, “Risk Management 101 — Reduce Settlement Times” · lsta.org/university/operations/</text>
+    <text x="28" y="219" font-size="12" fill="#53677e">Middle bucket derived from rounded source figures: 100% − 29% − 27% = 44%.</text>
+  </g>
+</svg>

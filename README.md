@@ -6,6 +6,20 @@ Private tokenised register and RFQ secondary market for syndicated-loan interest
 
 **Read first:** [PITCH.md](PITCH.md) (problem, solution, validation, ask) · [HACKATHON-PRD.md](HACKATHON-PRD.md) (full spec, status at submission in §8.5) · [docs/validation.md](docs/validation.md) · [docs/lean-canvas.md](docs/lean-canvas.md)
 
+## Why settlement needs to change
+
+A syndicated loan has one borrower, one credit agreement and many lenders. Selling a lender's position requires an assignment: documents, eligibility checks and any required consents must be completed before the administrative agent records the new lender. Electronic trading and document workflows accelerate individual steps, but the agent's ownership register and the bank-wire payment remain separate. Agreeing a price is not the same as completing the transfer.
+
+**Only 29% of par loan trades settled within T+7; 27% took longer than T+20** in LSTA's 2021 commentary. The delay leaves sellers waiting for proceeds and both parties exposed to non-performance. [Source: LSTA, Risk Management 101](https://www.lsta.org/university/operations/).
+
+![Historical par loan settlement: 29% within seven business days, 44% in eight to twenty days, and 27% beyond twenty days.](docs/assets/loan-settlement-times.svg)
+
+For loan funds offering daily redemptions, waiting weeks for sale proceeds creates a liquidity mismatch. Cash buffers and credit lines bridge that gap, tying up capital or adding funding costs.
+
+SyndicateLend brings the digital lender register and payment into one controlled transaction. Fast execution begins **after** the required legal consents and approvals; tokenisation does not waive them.
+
+## Core workflow
+
 - **Register:** one Asset Tokenization Studio (ATS) security per term-loan tranche (bond-type diamond, whitelist control list, internal KYC). 1 token = US$1 par.
 - **Payment leg:** permissioned HTS mock-USD token (KYC, freeze, pause keys held by the administrative agent).
 - **Settlement:** `SettlementEngine` exchanges loan tokens and mock USD atomically in one contract call, scheduled through the Hedera Schedule Service (HIP-1215 `scheduleCall`). Any compliance, balance or allowance failure reverts both legs and records the reason on-chain.
@@ -13,6 +27,8 @@ Private tokenised register and RFQ secondary market for syndicated-loan interest
 - **Interest:** agent commits a salted hash of the private rate notice to HCS; a Chainlink CRE confidential workflow verifies it in a TEE, computes accrual and releases only the distribution; the paying agent settles it in one atomic HTS transfer (Day 4).
 
 ## What is new here
+
+An **assignment** makes the buyer a lender of record. A **participation** passes through the loan's economics while the seller remains on the register, leaving the participant exposed to the seller as well as the borrower. SyndicateLend targets the underlying assignment, not just a pass-through claim.
 
 Tokenised private credit (Maple, Centrifuge, Figure, tokenised CLOs) wraps *exposure* to loans in a token; the loan still settles the old way behind the wrapper. SyndicateLend tokenises the **assignment itself** on the agent's register and makes its settlement atomic and compliance-aware. Specifically:
 
@@ -168,6 +184,8 @@ npx tsx scripts/intent-test.mts <id>          # create a test intent and print i
 Dashboard settings that complete the B2B setup (allowlist, MFA, login methods, app clients, webhooks) are listed in [docs/privy-dashboard.md](docs/privy-dashboard.md). Provisioned institutions are recorded in `web/data/org.json`.
 
 ## Confidential interest calculation with Chainlink CRE (Day 4)
+
+Floating-rate loans reset their interest rates, and trading changes lender positions. Servicing therefore requires both the applicable rate terms and an ownership record to determine each holder's payment. CRE connects the private rate notice to the register snapshot, calculating the distribution without publishing the underlying terms.
 
 `cre/interest-accrual` is a CRE Confidential Workflow (TypeScript, `handlerInTee`). The agent commits a salted hash of its private rate notice to the HCS notices topic; inside the enclave the workflow fetches the notice with a Vault DON secret, verifies it against the commitment, reads every holder's balance from the ATS register in one call through `RegisterSnapshot`, and reports only the per-holder distribution. A tampered notice aborts the run. The enclave makes three HTTP requests per period regardless of holder count (topic, notice, snapshot), and reassembles HCS messages that the network chunked above 1,024 bytes. See [cre/README.md](cre/README.md).
 

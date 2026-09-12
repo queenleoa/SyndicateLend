@@ -83,9 +83,21 @@ These steps are not unnecessary in themselves. The inefficiency comes from perfo
 | Private interest terms | Each party calculates and reconciles accrual independently | Payment breaks and delayed-compensation claims |
 | Scattered audit evidence | Messages, approvals, documents and receipts live in different systems | Slow investigation and weak real-time oversight |
 
-The problem is therefore not that the market lacks software. ClearPar coordinates loan settlement workflows, Loan IQ supports agent-bank operations, and Versana distributes agent-sourced loan data. These systems improve parts of the process, but ownership and payment still do not settle as one transaction on a common register.
+For loan funds offering daily redemptions, slow settlement also creates a **liquidity mismatch**: investors can request cash daily while loan-sale proceeds arrive weeks later. Cash buffers and credit lines bridge the gap but tie up capital or add funding costs, with greater pressure when redemptions rise.
+
+The problem is therefore not that the market lacks software. ClearPar routes documents and signatures; Loan IQ supports the agent's servicing books; Versana distributes agent-sourced data. They improve coordination without making the ownership record and cash payment one transaction. Three dependencies remain:
+
+- **Trade agreement is not lender-of-record status.** The buyer and seller agree economics first; the agent must process the assignment and record the new lender separately.
+- **Eligibility is facility-specific.** KYC and tax onboarding do not replace checks against a loan's disqualified-lender list or its borrower and agent consent requirements. A complete document package can still wait in an agent's queue or a contractual consent window.
+- **Cash and servicing run on separate timelines.** Bank wires must be coordinated with assignment effectiveness, while interest-payment cut-offs can interrupt transfers. During the gap, parties reconcile positions and accrued interest, including delayed compensation where applicable.
+
+Tokenisation can connect the register, transfer checks and payment; it cannot remove contractual consent periods or make a shadow register legally authoritative by itself.
 
 ### 2.3 Evidence of demand
+
+**Only 29% of par loan trades settled within T+7; 27% took longer than T+20**, according to LSTA's 2021 settlement commentary. These are historical figures, not a 2026 market estimate; T+n counts business days after the trade date. [Source: LSTA, Risk Management 101](https://www.lsta.org/university/operations/).
+
+![Historical par loan settlement: 29% within seven business days, 44% in eight to twenty days, and 27% beyond twenty days.](docs/assets/loan-settlement-times.svg)
 
 - The LSTA reported **$971 billion** of secondary loan trading in 2025, a record and 18% above 2024.
 - LSTA's April 2025 settlement review showed mean and median par settlement times still in the mid-to-high teens in business days, against a ten-year average of 20 business days.
@@ -131,6 +143,8 @@ Fullmetal Finance's institutional relationships are concentrated in India, where
 ### 3.1 Proposed solution
 
 SyndicateLend provides a shared register and an RFQ-based secondary market for a tokenised loan tranche.
+
+An **assignment** makes the buyer a lender of record with direct rights under the credit agreement. A **participation** instead passes through the economics while the seller remains the registered lender; the participant also takes exposure to the seller. The core product targets assignments. Feeder interests are a separate pass-through layer, not direct lender-of-record positions in the underlying facility.
 
 Each ATS token represents a defined amount of principal in one tranche. For the demonstration, one token represents one US dollar of par value. The token is not intended to replace the credit agreement by itself; the legal documents must recognise the digital register and define what the token represents. The first production pilot would therefore run as a shadow register before any legally binding migration.
 
@@ -231,6 +245,8 @@ Before settlement, the application checks that:
 - the trade has not expired, settled or been cancelled.
 
 ### 4.3 Calculate and distribute interest
+
+Floating-rate loans reset their interest rates, while secondary trades change lender positions. Each distribution therefore needs the applicable rate, accrual period and ownership record to determine who receives what. The demo links a private rate notice to a holder snapshot, making confidential calculation part of loan servicing rather than an isolated privacy feature.
 
 The agent's rate notice may include private economics. The public testnet should not receive the notice itself. Instead, the agent commits to the notice by publishing a salted hash. Chainlink CRE retrieves the confidential data inside a trusted execution environment, verifies it against the commitment and calculates the amounts due.
 
@@ -690,7 +706,7 @@ The closing claim should remain precise:
 
 ## 13. Research Sources
 
-Market figures and product claims in this PRD were checked against the following primary or first-party sources on 10 September 2026 (source 12 on 12 September 2026):
+Market figures and product claims in this PRD were checked against the following primary or first-party sources on 10 September 2026 (sources 12–13 on 12 September 2026):
 
 1. [LSTA — 1Q26 Secondary Trading and Settlement Study](https://www.lsta.org/content/secondary-trading-settlement-study-first-quarter-2026/) — reports $971 billion of secondary trading in 2025 and the subsequent trailing-twelve-month milestone.
 2. [LSTA — 2Q25 Secondary Loan Trading Volumes](https://www.lsta.org/content/lsta-secondary-trading-monthly-executive-summary-2q25-secondary-loan-trading-volumes-spike-again-to-a-record-262-billion/) — reports index outstandings approaching $1.5 trillion and 2025 trading activity.
@@ -704,3 +720,4 @@ Market figures and product claims in this PRD were checked against the following
 10. [Chainlink — Confidential Workflows](https://chain.link/privacy) — TEE-based confidential inputs and computation in CRE.
 11. [LSTA — Delayed Compensation Regime](https://www.lsta.org/content/the-lsta-delayed-compensation-regime/?ind=0&wpdmdl=1172) — operating rules for allocating economics after delayed settlement.
 12. [SLMA — About the Secondary Loan Market Association (India)](https://www.slma.in/page/about-slma) — incorporated August 2020 by ten banks including SBI, ICICI Bank and HDFC Bank, following the RBI task force on a secondary market for corporate loans.
+13. [LSTA — Risk Management 101: Reduce Settlement Times (Operations)](https://www.lsta.org/university/operations/) — 2021 commentary reporting 29% of par trades within T+7 and 27% beyond T+20. The chart's 44% middle bucket is the remainder of those rounded percentages.
