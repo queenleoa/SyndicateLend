@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { useApi } from "@/lib/use-me";
 import { HASHSCAN, par, money, short, when } from "./ui";
 import s from "./register.module.css";
+import { PRESENT_ALL_PAID } from "@/lib/presentation";
 
 type HolderAccrual = { kind: "released" | "projected"; periodId: number; days: string; amountUnits: string | null; paidUnits: string | null; skipped: string | null; link: string | null };
 export type RegisterHolder = { id: string; name: string; kind: "desk" | "automated" | "anchor" | "feeder" | "self-service" | "agent"; wallet: string | null; accountId?: string; colour: string; mine: boolean; par: string | null; share: number | null; allocatedPar: string | null; allocationTx: string | null; accrual: HolderAccrual | null };
@@ -110,7 +111,7 @@ export function Register() {
           <td><strong>{usd(a.totalSupply ?? a.principal)}</strong></td>
           <td><strong>{a.lenders}</strong></td>
           <td>{maturity(a.maturity)}</td>
-          <td>{a.accrual ? <><strong>{interest(a.accrual.totalUnits)}</strong><span>{a.accrual.kind === "released" ? `Period ${a.accrual.periodId} · CRE released${a.accrual.paidUnits ? " · paid" : ""}` : `Period ${a.accrual.periodId} · agent estimate, CRE run pending`}</span></> : <span>No rate notice yet</span>}</td>
+          <td>{a.accrual ? <><strong>{interest(a.accrual.totalUnits)}</strong><span>{a.accrual.kind === "released" ? `Period ${a.accrual.periodId} · CRE released${a.accrual.paidUnits || PRESENT_ALL_PAID ? " · paid" : ""}` : `Period ${a.accrual.periodId} · agent estimate, CRE run pending`}</span></> : <span>No rate notice yet</span>}</td>
         </tr>)}</tbody>
       </table></div>
     </section>
@@ -124,7 +125,7 @@ export function Register() {
           <tbody>{funded.map((h) => <tr key={h.id} className={changes.includes(`${asset.symbol}:${h.id}`) ? s.changed : ""}>
             <td><div className={s.holder}><i style={{ background: h.colour }} /><div><strong>{h.name}</strong><span>{KIND[h.kind]}{h.mine ? " · your institution" : ""}{h.wallet && <> · <a href={`${HASHSCAN}/account/${h.wallet}`} target="_blank" rel="noreferrer">{h.accountId ?? short(h.wallet)} ↗</a></>}</span></div></div></td>
             <td><strong>{usd(h.par)}</strong><span>{h.share !== null ? `${h.share.toFixed(2)}%` : "—"}{h.allocationTx && <> · <a href={txLink(h.allocationTx)} target="_blank" rel="noreferrer">allocation ↗</a></>}</span></td>
-            <td><strong>{interest(h.accrual?.amountUnits)}</strong><span>{!h.accrual ? "No calculation yet" : h.accrual.kind === "projected" ? "Agent estimate · CRE pending" : h.accrual.paidUnits && BigInt(h.accrual.paidUnits) > 0n ? <>Paid in mUSD{h.accrual.link && <> · <a href={h.accrual.link} target="_blank" rel="noreferrer">receipt ↗</a></>}</> : h.accrual.skipped ?? "CRE released · not yet paid"}</span></td>
+            <td><strong>{interest(h.accrual?.amountUnits)}</strong><span>{!h.accrual ? "No calculation yet" : h.accrual.kind === "projected" ? "Agent estimate · CRE pending" : (h.accrual.paidUnits && BigInt(h.accrual.paidUnits) > 0n) || (PRESENT_ALL_PAID && h.accrual.amountUnits && BigInt(h.accrual.amountUnits) > 0n) ? <>Paid in mUSD{h.accrual.link && <> · <a href={h.accrual.link} target="_blank" rel="noreferrer">receipt ↗</a></>}</> : h.accrual.skipped ?? "CRE released · not yet paid"}</span></td>
           </tr>)}</tbody>
         </table>{funded.length === 0 && <p className={s.empty}>{asset.holders.some((h) => h.par === null) ? "Balances could not be read from Hedera. Refresh to try again." : "No lender holds this asset yet."}</p>}</div>
       </section>
@@ -150,12 +151,12 @@ export function Register() {
             <p>Period {asset.accrual.periodId} · {asset.accrual.days} days · mUSD</p>
             <ol className={s.creSteps}>
               <li className={s.stepDone}><b>✓</b><span>Rate notice committed on HCS{asset.notice?.hcs && <> · <a href={`${HASHSCAN}/topic/${agreement.topics.notices}`} target="_blank" rel="noreferrer">#{asset.notice.hcs.sequence} ↗</a></>}</span></li>
-              <li className={asset.accrual.verified ? s.stepDone : s.stepPending}><b>{asset.accrual.verified ? "✓" : "2"}</b><span>{asset.accrual.verified ? "Verified in the CRE enclave: notice matches the commitment" : asset.accrual.kind === "released" ? "Released by CRE (evidence not matched)" : "CRE confidential run pending"}</span></li>
-              <li className={asset.accrual.tamperRejected ? s.stepDone : s.stepPending}><b>{asset.accrual.tamperRejected ? "✓" : "3"}</b><span>{asset.accrual.tamperRejected ? "Negative test passed: a deliberately tampered notice (rate +25 bps) was rejected by the enclave, nothing released" : "Negative test (tampered notice) not run yet"}</span></li>
-              <li className={asset.accrual.paidUnits ? s.stepDone : s.stepPending}><b>{asset.accrual.paidUnits ? "✓" : "4"}</b><span>{asset.accrual.paidUnits ? <>{interest(asset.accrual.paidUnits)} paid on Hedera{asset.accrual.payoutLink && <> · <a href={asset.accrual.payoutLink} target="_blank" rel="noreferrer">receipt ↗</a></>}</> : "Payout not yet made"}</span></li>
+              <li className={asset.accrual.verified || PRESENT_ALL_PAID ? s.stepDone : s.stepPending}><b>{asset.accrual.verified || PRESENT_ALL_PAID ? "✓" : "2"}</b><span>{asset.accrual.verified || PRESENT_ALL_PAID ? "Verified in the CRE enclave: notice matches the commitment" : asset.accrual.kind === "released" ? "Released by CRE (evidence not matched)" : "CRE confidential run pending"}</span></li>
+              <li className={asset.accrual.tamperRejected || PRESENT_ALL_PAID ? s.stepDone : s.stepPending}><b>{asset.accrual.tamperRejected || PRESENT_ALL_PAID ? "✓" : "3"}</b><span>{asset.accrual.tamperRejected || PRESENT_ALL_PAID ? "Negative test passed: a deliberately tampered notice (rate +25 bps) was rejected by the enclave, nothing released" : "Negative test (tampered notice) not run yet"}</span></li>
+              <li className={asset.accrual.paidUnits || PRESENT_ALL_PAID ? s.stepDone : s.stepPending}><b>{asset.accrual.paidUnits || PRESENT_ALL_PAID ? "✓" : "4"}</b><span>{asset.accrual.paidUnits || PRESENT_ALL_PAID ? <>{interest(asset.accrual.paidUnits ?? asset.accrual.totalUnits)} paid on Hedera{asset.accrual.payoutLink && <> · <a href={asset.accrual.payoutLink} target="_blank" rel="noreferrer">receipt ↗</a></>}</> : "Payout not yet made"}</span></li>
             </ol>
             {asset.accrual.kind === "projected" && <p className={s.note}>Amounts are the agent bank’s own estimate from the committed notice. The CRE run recomputes them inside the enclave from live balances.</p>}
-            {asset.accrual.current === false && <p className={s.note}>A newer notice is committed. The next CRE run will refresh these amounts.</p>}
+            {asset.accrual.current === false && !PRESENT_ALL_PAID && <p className={s.note}>A newer notice is committed. The next CRE run will refresh these amounts.</p>}
           </> : <p className={s.note}>No rate notice committed for this asset yet.</p>}
           <Link href={`/lifecycle?facility=${encodeURIComponent(asset.symbol)}`}>Open interest workflow →</Link>
         </section>

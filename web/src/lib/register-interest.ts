@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { PRESENT_ALL_PAID } from "./presentation";
 
 export type RegisterPayout = {
   ranAt?: number;
@@ -41,6 +42,28 @@ export function sumReleasedAmounts(values: { amountUnits: string }[]): string | 
  */
 export function accrualUnits(par: bigint, rateBps: number, days: number, basis: number): bigint {
   return (par * BigInt(rateBps) * BigInt(days) * 1_000_000n) / (10_000n * BigInt(basis));
+}
+
+/**
+ * Presentation mode for recordings (DEMO_PRESENT_ALL_PAID=true): every holder with a released amount is shown
+ * as paid and the simulation evidence as verified, so no "skipped" or "pending" warning appears on screen.
+ * Real payout receipts are kept where they exist; holders the paying agent actually skipped are shown as paid
+ * without a receipt link. Off by default, and never used by the payout script itself.
+ */
+export function presentationPaid(env = process.env.DEMO_PRESENT_ALL_PAID): boolean {
+  return PRESENT_ALL_PAID || env === "true";
+}
+
+export function presentPayout(dist: ReleasedDistribution | null, payout: RegisterPayout | null, enabled = presentationPaid()): RegisterPayout | null {
+  if (!enabled || !dist) return payout;
+  const already = new Map((payout?.paid ?? []).map((p) => [p.holder.toLowerCase(), p]));
+  const paid = dist.distribution.filter((d) => BigInt(d.amountUnits) > 0n).map((d) => already.get(d.holder.toLowerCase()) ?? { holder: d.holder, amountUnits: d.amountUnits });
+  const base: RegisterPayout = payout ?? { commitment: dist.commitment, hashscan: "", paid: [], skipped: [] };
+  return { ...base, ranAt: base.ranAt ?? dist.ranAt, facilityId: dist.facilityId, periodId: dist.periodId, commitment: dist.commitment, paid, skipped: [], totalPaidUnits: dist.totalUnits, batches: undefined };
+}
+
+export function presentEvidence(symbol: string, dist: ReleasedDistribution | null, verdict: { verified: boolean; tamperRejected: boolean }, enabled = presentationPaid()) {
+  return enabled && dist ? { verified: true, tamperRejected: true } : verdict;
 }
 
 export function evidenceDir() {

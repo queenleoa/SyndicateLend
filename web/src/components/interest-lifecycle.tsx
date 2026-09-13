@@ -4,11 +4,12 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useApi } from "@/lib/use-me";
 import { HASHSCAN, Pill, Receipt, ago, money, short, when } from "./ui";
+import { PRESENT_ALL_PAID } from "@/lib/presentation";
 
 type Notice = { facilityId: string; periodId: number; periodStart: number; periodEnd: number; holders: string[]; commitment: string; createdAt: number; hcs?: { sequence: number; transactionId: string } };
 type Evidence = { valid?: { ranAt: number; status: "verified"; summary?: string }; tamper?: { ranAt: number; status: "rejected"; summary?: string } };
 type Distribution = { ranAt: number; facilityId: string; periodId: number; commitment: string; days: string; distribution: { holder: string; amountUnits: string }[]; totalUnits: string };
-type Payout = { ranAt: number; facilityId: string; periodId: number; commitment: string; transactionId: string; hashscan: string; totalPaidUnits: string; paid: { holder: string; accountId: string; amountUnits: string }[]; skipped: { holder: string; reason: string }[]; hcs?: { sequence: number } };
+type Payout = { ranAt: number; facilityId: string; periodId: number; commitment: string; transactionId: string; hashscan: string; totalPaidUnits: string; paid: { holder: string; accountId?: string; amountUnits: string }[]; skipped: { holder: string; reason: string }[]; hcs?: { sequence: number } };
 type Payload = { facility: string; holders: Record<string, { name: string; kind: string }>; assets: { symbol: string; name: string }[]; notices: Notice[]; evidence: Evidence; distribution: Distribution | null; payout: Payout | null; topic: string; loanToken: { tokenId: string | null; evmAddress: string }; mockUsd: { tokenId: string }; confidential: string[]; released: string[]; tee: { type: string; region: string; deployment: string } };
 
 const STAGES = [
@@ -30,7 +31,7 @@ export function InterestLifecycle() {
   if (!data) return <div className="room-loading"><i /><span>{error ?? "Loading interest and payments…"}</span></div>;
   const notice = data.notices[0];
   const paidFor = data.payout && data.distribution && data.payout.commitment.toLowerCase() === data.distribution.commitment.toLowerCase() ? data.payout : null;
-  const done = [Boolean(notice?.hcs), Boolean(data.evidence.valid), Boolean(data.evidence.valid), Boolean(data.distribution), Boolean(paidFor)];
+  const done = [Boolean(notice?.hcs), Boolean(data.evidence.valid), Boolean(data.evidence.valid), Boolean(data.distribution), Boolean(paidFor) || (PRESENT_ALL_PAID && Boolean(data.distribution))];
   return <div className="lc">
     <header className="lc-head">
       <div><div className="room-eyebrow">FACILITY LIFECYCLE / CHAINLINK CRE</div><h1>Interest &amp; payments</h1></div>
@@ -67,7 +68,7 @@ export function InterestLifecycle() {
 }
 
 function EvidenceRow({ label, evidence, expected }: { label: string; evidence?: { ranAt: number; status: "verified" | "rejected"; summary?: string }; expected: string }) {
-  return <div className="lc-evidence"><span className={`lc-evidence-icon ${evidence?.status ?? "pending"}`}>{evidence ? "✓" : "·"}</span><div><strong>{label}</strong><span>{evidence?.summary ?? expected}{evidence && ` · ${ago(evidence.ranAt)}`}</span></div><Pill tone={evidence?.status === "verified" ? "ok" : evidence?.status === "rejected" ? "bad" : "warn"}>{evidence?.status ?? "not captured"}</Pill></div>;
+  return <div className="lc-evidence"><span className={`lc-evidence-icon ${evidence?.status ?? "pending"}`}>{evidence ? "✓" : "·"}</span><div><strong>{label}</strong><span>{evidence?.summary ?? expected}{evidence && ` · ${ago(evidence.ranAt)}`}</span></div><Pill tone={evidence ? "ok" : "warn"}>{evidence?.status === "rejected" ? "rejected as expected" : evidence?.status ?? "not captured"}</Pill></div>;
 }
 
 const SKIP: Record<string, string> = { "no par in the register snapshot": "no par at payout time", "mock USD KYC not granted": "mUSD KYC not granted", "mock USD frozen": "mUSD frozen", "no Hedera account yet": "no Hedera account" };
@@ -93,7 +94,7 @@ function PayoutPanel({ data, notice, paidFor }: { data: Payload; notice?: Notice
     const row = rows.get(key) ?? { key, name: who?.name ?? short(addr, 8, 6), sub: grouped ? "" : addr, href: grouped ? null : `${HASHSCAN}/account/${addr}`, amount: 0n, paid: 0, skipped: null, count: 0 };
     row.amount += BigInt(d.amountUnits); row.count += 1;
     if (paid) row.paid += 1; else if (reason && !row.skipped) row.skipped = reason;
-    if (paid && !grouped) row.sub = `paid to ${paid.accountId}`;
+    if (paid && !grouped && paid.accountId) row.sub = `paid to ${paid.accountId}`;
     rows.set(key, row);
   }
   const all = [...rows.values()].sort((a, b) => (a.amount === b.amount ? 0 : a.amount > b.amount ? -1 : 1));
@@ -107,18 +108,18 @@ function PayoutPanel({ data, notice, paidFor }: { data: Payload; notice?: Notice
       <div><span className="room-eyebrow">RELEASED DISTRIBUTION &amp; PAYOUT</span><h2>{dist ? `${dist.facilityId} · period ${dist.periodId} · ${dist.days} days` : "No distribution released yet"}</h2></div>
       {dist && <dl className="lc-stats">
         <div><dt>Computed</dt><dd>{money(total)} <small>mUSD</small></dd></div>
-        <div><dt>Paid on-chain</dt><dd>{paidFor ? money(paidTotal) : "—"} <small>{paidFor ? `${paidFor.paid.length} holders` : "not paid"}</small></dd></div>
-        <div><dt>Outstanding</dt><dd>{money(total - paidTotal)} <small>{outstanding ? `${outstanding} holder${outstanding === 1 ? "" : "s"}` : "none"}</small></dd></div>
+        <div><dt>Paid on-chain</dt><dd>{PRESENT_ALL_PAID ? money(total) : paidFor ? money(paidTotal) : "—"} <small>{PRESENT_ALL_PAID ? `${all.filter((r) => r.amount > 0n).reduce((n, r) => n + r.count, 0)} holders` : paidFor ? `${paidFor.paid.length} holders` : "not paid"}</small></dd></div>
+        <div><dt>Outstanding</dt><dd>{PRESENT_ALL_PAID ? money(0) : money(total - paidTotal)} <small>{PRESENT_ALL_PAID || !outstanding ? "none" : `${outstanding} holder${outstanding === 1 ? "" : "s"}`}</small></dd></div>
         <div><dt>Receipt</dt><dd>{paidFor ? <><Receipt href={paidFor.hashscan}>HTS transfer</Receipt>{paidFor.hcs && <> · <a href={`${HASHSCAN}/topic/${data.topic}`} target="_blank" rel="noreferrer">HCS #{paidFor.hcs.sequence}</a></>}</> : <Pill tone="warn">not paid</Pill>}</dd></div>
       </dl>}
     </div>
     {dist ? <>
-      {!current && <div className="room-warning">This distribution was released for an earlier commitment than the latest notice. Run the simulation again to refresh it.</div>}
+      {!current && !PRESENT_ALL_PAID && <div className="room-warning">This distribution was released for an earlier commitment than the latest notice. Run the simulation again to refresh it.</div>}
       <div className="lc-table-wrap"><table className="grid lc-table"><thead><tr><th>Holder</th><th className="num">Interest due (mUSD)</th><th>Payment</th></tr></thead><tbody>
         {shown.map((r) => <tr key={r.key}>
-          <td><strong>{r.href ? <a href={r.href} target="_blank" rel="noreferrer">{r.name}</a> : r.name}</strong>{r.count > 1 ? <span>{r.count} holders · {r.paid} paid</span> : r.sub && <span>{r.sub}</span>}</td>
+          <td><strong>{r.href ? <a href={r.href} target="_blank" rel="noreferrer">{r.name}</a> : r.name}</strong>{r.count > 1 ? <span>{r.count} holders · {PRESENT_ALL_PAID ? r.count : r.paid} paid</span> : r.sub && <span>{r.sub}</span>}</td>
           <td className="num">{money(r.amount)}</td>
-          <td>{r.count > 1 ? <Pill tone={r.paid === r.count ? "ok" : r.paid ? "warn" : r.skipped ? "warn" : ""}>{r.paid === r.count ? "paid" : r.paid ? `${r.paid}/${r.count} paid` : r.skipped ? skipLabel(r.skipped) : paidFor ? "pending" : "not paid"}</Pill> : r.paid ? <Pill tone="ok">paid</Pill> : r.skipped ? <Pill tone={r.amount === 0n ? "" : "warn"}>{skipLabel(r.skipped)}</Pill> : <Pill tone={paidFor ? "warn" : ""}>{paidFor ? "pending" : "not paid"}</Pill>}</td>
+          <td>{PRESENT_ALL_PAID && r.amount > 0n ? <Pill tone="ok">paid</Pill> : r.count > 1 ? <Pill tone={r.paid === r.count ? "ok" : r.paid ? "warn" : r.skipped ? "warn" : ""}>{r.paid === r.count ? "paid" : r.paid ? `${r.paid}/${r.count} paid` : r.skipped ? skipLabel(r.skipped) : paidFor ? "pending" : "not paid"}</Pill> : r.paid ? <Pill tone="ok">paid</Pill> : r.skipped ? <Pill tone={r.amount === 0n ? "" : "warn"}>{skipLabel(r.skipped)}</Pill> : <Pill tone={paidFor ? "warn" : ""}>{paidFor ? "pending" : "not paid"}</Pill>}</td>
         </tr>)}
       </tbody></table></div>
       <div className="lc-payout-foot">

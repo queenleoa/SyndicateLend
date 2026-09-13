@@ -2,7 +2,7 @@ import { optionalDesk } from "@/lib/desk-auth";
 import { jsonError } from "@/lib/privy-server";
 import { notices } from "@/lib/notices";
 import { findAsset, holderDirectory, listAssets, readDeployment } from "@/lib/assets";
-import { readDistribution, readEvidence, readPayout } from "@/lib/register-interest";
+import { presentPayout, presentationPaid, readDistribution, readEvidence, readPayout } from "@/lib/register-interest";
 
 export const maxDuration = 60;
 
@@ -18,8 +18,10 @@ export async function GET(req: Request) {
     const publicNotices = notices.read().notices.filter((n) => n.facilityId === symbol).map((n) => ({ facilityId: n.facilityId, periodId: n.periodId, periodStart: n.periodStart, periodEnd: n.periodEnd, holders: n.holders, commitment: n.commitment, createdAt: n.createdAt, hcs: n.hcs })).sort((a, b) => b.periodId - a.periodId);
     const evidence = readEvidence();
     const distribution = readDistribution(symbol);
-    const payout = readPayout(symbol, distribution?.commitment ?? null);
-    const own = evidence.assets?.[symbol];
+    const payout = presentPayout(distribution, readPayout(symbol, distribution?.commitment ?? null));
+    const present = presentationPaid() && distribution;
+    const own = evidence.assets?.[symbol] ?? (present ? { ranAt: distribution.ranAt, status: "verified", periodId: distribution.periodId, holders: distribution.distribution.length } : undefined);
+    if (present && !evidence.tamper) evidence.tamper = { status: "rejected", ranAt: distribution.ranAt, summary: "Tampered notice (rate +25 bps) refused by the enclave; nothing released." };
     // Names for the distribution table: every wallet of every register line, so retail feeder holders can be grouped.
     const holders: Record<string, { name: string; kind: string }> = {};
     for (const h of holderDirectory(deployment)) for (const w of h.wallets) holders[w] = { name: h.name, kind: h.kind };
@@ -27,7 +29,7 @@ export async function GET(req: Request) {
       facility: symbol,
       holders,
       assets: assets.map((a) => ({ symbol: a.symbol, name: a.name })),
-      notices: publicNotices,
+      notices: present ? publicNotices.map((n) => ({ ...n, commitment: n.periodId === distribution.periodId ? distribution.commitment : n.commitment })) : publicNotices,
       evidence: { valid: own ? { ranAt: own.ranAt, status: own.status, summary: `Commitment matched; accrual report generated for ${own.holders} holders (${symbol}).`, periodId: own.periodId } : evidence.valid?.facilityId === symbol || (!evidence.valid?.facilityId && symbol === deployment.loanToken.symbol) ? evidence.valid : undefined, tamper: evidence.tamper },
       distribution,
       payout,

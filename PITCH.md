@@ -48,4 +48,4 @@ Settlement fee per completed trade, facility onboarding fee, annual register-mai
 
 ## Demo
 
-Five-minute flow in the [README](README.md#five-minute-demo-mode). Every on-chain claim is reproducible from the `ops/` scripts without a Privy login.
+Hosted app: <https://syndicatelend.fullmetal.finance>. Demo video and ETHGlobal showcase: <https://ethglobal.com/showcase/syndicatelend-dd17h>. Five-minute flow in the [README](README.md#five-minute-demo-mode). Every on-chain claim is reproducible from the `ops/` scripts without a Privy login.

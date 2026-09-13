@@ -5,7 +5,7 @@ Send this to loan-operations, agency or credit-fund practitioners. It takes 15 m
 ## What to look at (10 minutes)
 
 1. [PITCH.md](../PITCH.md), two minutes.
-2. The five-minute demo flow in the [README](../README.md) (a recorded walkthrough will be linked there once available; the flow and every receipt are readable without it).
+2. The demo video on the [ETHGlobal showcase](https://ethglobal.com/showcase/syndicatelend-dd17h), or the hosted app at <https://syndicatelend.fullmetal.finance> (any email works), then the five-minute demo flow in the [README](../README.md).
 3. One HashScan receipt of your choice from the README's settlement evidence, to see that the trade and the failed trade are real.
 4. The reconciliation report an agent would receive: run `npm run agent:reconcile` or read `ops/reports/`.
 

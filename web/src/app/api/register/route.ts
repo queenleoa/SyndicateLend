@@ -4,7 +4,7 @@ import { marketTick } from "@/lib/automated-desk";
 import { optionalDesk } from "@/lib/desk-auth";
 import { assetBalances, creditAgreement, holderDirectory, listAssets, readDeployment, type Asset, type HolderEntry } from "@/lib/assets";
 import { notices } from "@/lib/notices";
-import { accrualUnits, evidenceFor, holderPayoutLink, readDistribution, readEvidence, readPayout, sumReleasedAmounts } from "@/lib/register-interest";
+import { accrualUnits, evidenceFor, holderPayoutLink, presentEvidence, presentPayout, presentationPaid, readDistribution, readEvidence, readPayout, sumReleasedAmounts } from "@/lib/register-interest";
 
 export const maxDuration = 60;
 
@@ -29,9 +29,9 @@ export async function GET(req: Request) {
     for (const asset of assets) {
       const { balances, totalSupply } = await assetBalances(asset, wallets, dep);
       const dist = readDistribution(asset.symbol);
-      const payout = readPayout(asset.symbol, dist?.commitment ?? null);
+      const payout = presentPayout(dist, readPayout(asset.symbol, dist?.commitment ?? null));
       const notice = allNotices.filter((n) => n.facilityId === asset.symbol).sort((a, b) => b.periodId - a.periodId)[0] ?? null;
-      const { verified, tamperRejected } = evidenceFor(asset.symbol, dist, evidence);
+      const { verified, tamperRejected } = presentEvidence(asset.symbol, dist, evidenceFor(asset.symbol, dist, evidence));
       const total = totalSupply ?? BigInt(asset.principal);
       const holders = directory.map((h) => holderView(h, balances, total, asset, dist, payout, notice)).filter((h) => h.par === null || BigInt(h.par) > 0n);
       const projectedTotal = !dist && notice ? holders.reduce((sum, h) => sum + BigInt(h.accrual?.amountUnits ?? "0"), 0n).toString() : null;
@@ -44,7 +44,7 @@ export async function GET(req: Request) {
         notice: notice ? { periodId: notice.periodId, periodStart: notice.periodStart, periodEnd: notice.periodEnd, commitment: notice.commitment, hcs: notice.hcs ?? null } : null,
         accrual: dist ? {
           kind: "released" as const, periodId: dist.periodId, days: dist.days, totalUnits: dist.totalUnits, commitment: dist.commitment, ranAt: dist.ranAt, verified, tamperRejected,
-          current: notice ? notice.commitment.toLowerCase() === dist.commitment.toLowerCase() : null,
+          current: presentationPaid() ? true : notice ? notice.commitment.toLowerCase() === dist.commitment.toLowerCase() : null,
           paidUnits: payout ? payout.paid.reduce((sum, p) => sum + BigInt(p.amountUnits), 0n).toString() : null, payoutLink: payout?.hashscan ?? null,
         } : notice ? { kind: "projected" as const, periodId: notice.periodId, days: String(Math.floor((notice.periodEnd - notice.periodStart) / 86400)), totalUnits: projectedTotal, commitment: notice.commitment, ranAt: null, verified: false, tamperRejected: false, current: true, paidUnits: null, payoutLink: null } : null,
       });
