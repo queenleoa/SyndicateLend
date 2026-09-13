@@ -39,3 +39,6 @@ jobs:
         working-directory: web
       - name: web lint
         run: npm run lint --workspace web
+      - name: web unit tests (nonce allocation, approvals, assignments, issuance, keys, reset, register interest)
+        run: node --import tsx --test scripts/*.test.mts
+        working-directory: web

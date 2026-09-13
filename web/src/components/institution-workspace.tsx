@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { IntentDetails, OPEN, ROLE, SignerDots, describeIntent, signerRows, useApprovalInbox, type InstitutionApprovalPayload } from "./approvals-inbox";
 import { HASHSCAN, PrivyMark, short, when } from "./ui";
 import { approvalKind, barePrivyId, canApprove, hasSigned, type ApprovalIntent } from "@/lib/approval-notifications";
@@ -94,7 +94,13 @@ function WalletSetup({ inbox, data, desk, setupToSign }: { inbox: Inbox; data: I
 }
 
 /** One desk-signed permission: always on screen, moving from "prepared later" to signed, executed and done. */
+/** Wall-clock for expiry checks as an external store (30-second buckets), so render stays pure; 0 on the server. */
+const TICK = 30_000;
+const subscribeClock = (onChange: () => void) => { const t = setInterval(onChange, TICK); return () => clearInterval(t); };
+const useNow = () => useSyncExternalStore(subscribeClock, () => Math.floor(Date.now() / TICK) * TICK, () => 0);
+
 function SetupTile({ step, index, intent, inbox, data }: { step: Step; index: number; intent: ApprovalIntent | null; inbox: Inbox; data: InstitutionApprovalPayload }) {
+  const now = useNow();
   const me = data.me.userId;
   const done = step.state === "done";
   const actionable = intent ? canApprove(intent, me) : false;
@@ -107,7 +113,7 @@ function SetupTile({ step, index, intent, inbox, data }: { step: Step; index: nu
     : !intent ? "Prepared once network setup completes"
     : actionable ? "Needs your signature"
     : mine && intent.status === "pending" ? "Signed by you · compliance co-signer completing the quorum…"
-    : intent.status === "pending" ? (intent.expires_at <= Date.now() ? "Approval expired · recover it below" : "Awaiting quorum signatures")
+    : intent.status === "pending" ? (now > 0 && intent.expires_at <= now ? "Approval expired · recover it below" : "Awaiting quorum signatures")
     : OPEN.has(intent.status) ? "Approved · broadcasting to Hedera…"
     : `Privy status: ${intent.status}`;
   const tileClass = { done: styles.tileDone, failed: styles.tileFailed, waiting: styles.tileWaiting, sign: styles.tileSign, executing: styles.tileExecuting }[phase];

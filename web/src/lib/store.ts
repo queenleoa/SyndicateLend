@@ -12,10 +12,12 @@ import { dataDir } from "./data-dir";
  * helpers) refreshes the cache from Redis; writes update the cache and file immediately and persist
  * to Redis asynchronously, after the response when running inside a Next request.
  */
-const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL;
-const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+// Upstash names, with Vercel Marketplace / KV names as fallbacks so a store attached from the Vercel dashboard works untouched.
+const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL;
+const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN;
 const NS = process.env.STORE_NAMESPACE ?? "syndicatelend";
 export const redisBacked = Boolean(REDIS_URL && REDIS_TOKEN);
+if (process.env.VERCEL && !redisBacked) console.warn("[store] Running on Vercel without UPSTASH_REDIS_REST_URL/TOKEN: each serverless instance keeps its own institutions, so approvals will fail with \"not a desk member\" across instances. Attach Upstash Redis (UPSTASH_REDIS_REST_URL/TOKEN or KV_REST_API_URL/TOKEN) to this environment and redeploy.");
 
 const cache = new Map<string, unknown>();
 const hydratedAt = new Map<string, number>();

@@ -6,7 +6,7 @@ Private tokenised register and RFQ secondary market for syndicated-loan interest
 
 **Live demo:** <https://syndicatelend.fullmetal.finance> (sign in with any email; you get your own institution) · **Demo video and ETHGlobal showcase:** <https://ethglobal.com/showcase/syndicatelend-dd17h>
 
-**Read first:** [PITCH.md](PITCH.md) (problem, solution, validation, ask) · [HACKATHON-PRD.md](HACKATHON-PRD.md) (full spec, status at submission in §8.5) · [docs/validation.md](docs/validation.md) · [docs/lean-canvas.md](docs/lean-canvas.md)
+**Read first:** [PITCH.md](PITCH.md) (problem, solution, validation, ask) · [docs/deck.md](docs/deck.md) (ten-slide deck) · [HACKATHON-PRD.md](HACKATHON-PRD.md) (full spec, status at submission in §8.5) · [docs/validation.md](docs/validation.md) · [docs/lean-canvas.md](docs/lean-canvas.md)
 
 ## Why settlement needs to change
 
@@ -56,7 +56,7 @@ The agent-bank walkthrough is four browser steps, no terminal ([docs/loan-regist
 
 The hosted app is at <https://syndicatelend.fullmetal.finance>. Any email can sign in and gets its own institution at once. Its Privy key quorum is 2-of-3: the signed-in trader, the venue's automated compliance co-signer (a server-held P-256 key) and a reserve key minted for that desk (public half only, so the venue holds one key of three and can never execute alone). The judge signs once in the browser, the venue co-signs after checking the intent, and the wallet policy still limits everything to the venue contracts. The named institutions in the video keep their 2-of-3 human quorums. The operator side of Hedera onboarding runs automatically from any page load. An automated liquidity desk (Aldgate, two server-held keys, labelled as automated) always has a buy and a sell RFQ open, quotes within a minute, accepts the best quote it receives and approves its own side, so a judge can also trade end to end. A configured email group gets a **Reset desk** button for iterating. See [docs/demo-runbook.md](docs/demo-runbook.md).
 
-Every on-chain claim below is also reproducible without a login from the `ops/` scripts against the committed ids in `ops/deployments/testnet.json`, and every artefact links to HashScan. CI runs the 21 Foundry tests, `tsc --noEmit` for ops and web, and eslint on each push.
+Every on-chain claim below is also reproducible without a login from the `ops/` scripts against the committed ids in `ops/deployments/testnet.json`, and every artefact links to HashScan. CI runs the 21 Foundry tests, `tsc --noEmit` for ops and web, eslint, and the 36 TypeScript unit tests in `web/scripts/*.test.mts` on each push.
 
 ## Live on Hedera testnet (Day 1, 2026-09-10)
 
@@ -95,7 +95,7 @@ Three eligible lenders hold the tranche (seller 150m par, holder 100m par, buyer
 | `ops/src/feeder-demo.ts` | Retail feeder holders on public testnet (account driver); keys in gitignored `ops/.feeder-keys.json` |
 | `web/` | Institutional web app (Day 3) |
 | `cre/` | Chainlink CRE confidential workflow (Day 4); `cre/evidence/` holds the sanitised simulation results, released distribution and payout receipt |
-| `docs/` | Validation record, Lean Canvas, Privy dashboard settings, demo runbook, loan-registry walkthrough, issuance guide, wallet-setup recovery |
+| `docs/` | Ten-slide deck, validation record, Lean Canvas, Privy dashboard settings, demo runbook, loan-registry walkthrough, issuance guide, wallet-setup recovery |
 | `web/scripts/` | Provisioning (`provision.mts`, `provision-automated-desk.mts`), Hedera onboarding by hand (`hedera-onboard.mts`), one market tick (`market-tick.mts`), intent inspection, and the offline test suites (`*.test.mts`) |
 | `.github/workflows/ci.yml` | forge test, typecheck and lint on every push |
 
