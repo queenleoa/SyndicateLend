@@ -1,25 +1,25 @@
 {
   "valid": {
-    "ranAt": 1789311236716,
+    "ranAt": 1789328828868,
     "status": "verified",
     "facilityId": "MHTLB-A",
-    "summary": "Commitment matched; accrual report generated for 30 holders (MHTLB-A).",
-    "periodId": 3,
-    "holders": 30,
-    "totalUnits": "1631249999981"
+    "summary": "Commitment matched; accrual report generated for 310 holders (MHTLB-A).",
+    "periodId": 4,
+    "holders": 310,
+    "totalUnits": "1933333333128"
   },
   "tamper": {
-    "ranAt": 1789311236716,
+    "ranAt": 1789328828868,
     "status": "rejected",
     "summary": "Negative test: a deliberately tampered rate notice (rate +25 bps) was rejected inside the enclave; nothing was released."
   },
   "assets": {
     "MHTLB-A": {
-      "ranAt": 1789311236716,
+      "ranAt": 1789328828868,
       "status": "verified",
-      "periodId": 3,
-      "holders": 30,
-      "totalUnits": "1631249999981"
+      "periodId": 4,
+      "holders": 310,
+      "totalUnits": "1933333333128"
     },
     "MH-RCF": {
       "ranAt": 1789311236716,

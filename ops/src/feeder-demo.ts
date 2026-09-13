@@ -65,32 +65,54 @@ for (const k of keys.slice(0, target)) {
   const evm = k.address.toLowerCase();
   if (doneSet.has(evm)) continue;
   console.log(`\nholder ${done.length + 1}/${target} ${evm}`);
+  // Every step below is resumable: a holder that was half onboarded by an interrupted run (account funded,
+  // token associated, listed on the register) is completed rather than repeated.
   // 1. Alias funding creates the public-network account.
-  const fund = await new TransferTransaction().addHbarTransfer(operatorId(), new Hbar(-hbar)).addHbarTransfer(AccountId.fromEvmAddress(0, 0, evm), new Hbar(hbar)).execute(client);
-  await fund.getReceipt(client);
-  txCount++;
-  const accountId = await waitFor(() => accountIdForEvm(evm), `account for ${evm}`);
-  console.log(`  account ${accountId} created (${fund.transactionId})`);
+  let accountId = await accountIdForEvm(evm);
+  let fundTx = "existing";
+  if (accountId) console.log(`  account ${accountId} already exists`);
+  else {
+    const fund = await new TransferTransaction().addHbarTransfer(operatorId(), new Hbar(-hbar)).addHbarTransfer(AccountId.fromEvmAddress(0, 0, evm), new Hbar(hbar)).execute(client);
+    await fund.getReceipt(client);
+    txCount++;
+    fundTx = fund.transactionId.toString();
+    accountId = await waitFor(() => accountIdForEvm(evm), `account for ${evm}`);
+    console.log(`  account ${accountId} created (${fund.transactionId})`);
+  }
   // 2. Mock-USD association (holder signs) and KYC (agent signs).
   const holderKey = PrivateKey.fromStringECDSA(k.privateKey);
-  const assoc = await (await new TokenAssociateTransaction().setAccountId(AccountId.fromString(accountId)).setTokenIds([usd]).freezeWith(client).sign(holderKey)).execute(client);
-  await assoc.getReceipt(client);
+  try {
+    const assoc = await (await new TokenAssociateTransaction().setAccountId(AccountId.fromString(accountId)).setTokenIds([usd]).freezeWith(client).sign(holderKey)).execute(client);
+    await assoc.getReceipt(client);
+    txCount++;
+  } catch (e) {
+    if (!/TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT/.test(String(e))) throw e;
+  }
   const kyc = await new TokenGrantKycTransaction().setAccountId(AccountId.fromString(accountId)).setTokenId(usd).execute(client);
   await kyc.getReceipt(client);
-  txCount += 2;
+  txCount++;
   console.log(`  mock USD associated and KYC granted`);
   // 3. ATS eligibility: whitelist and internal KYC on the security.
-  await Security.addToControlList(new ControlListRequest({ securityId: token, targetId: evm }));
-  await send(d, "grantKyc", [evm, `kyc:feeder:${evm.slice(2, 10)}`, now, now + 365 * 24 * 3600, wallet.address]);
-  txCount += 2;
+  if (!(await d.getFunction("isInControlList")(evm))) {
+    await Security.addToControlList(new ControlListRequest({ securityId: token, targetId: evm }));
+    txCount++;
+  }
+  if (Number(await d.getFunction("getKycStatusFor")(evm)) !== 1) {
+    await send(d, "grantKyc", [evm, `kyc:feeder:${evm.slice(2, 10)}`, now, now + 365 * 24 * 3600, wallet.address]);
+    txCount++;
+  }
   console.log(`  ATS whitelist and KYC granted`);
   // 4. Compliance-checked transfer of par from the feeder to the holder.
-  const tx = await loanAsFeeder.getFunction("transfer")(evm, par, { gasLimit: 1_500_000 });
-  const rcpt = await tx.wait();
-  if (rcpt?.status !== 1) throw new Error(`par transfer to ${evm} failed: ${tx.hash}`);
-  txCount++;
-  console.log(`  ${par} par transferred from ${feederName}: ${HASHSCAN}/transaction/${tx.hash}`);
-  const holder: Holder = { evmAddress: evm, accountId, par: par.toString(), fundTx: fund.transactionId.toString(), transferTx: tx.hash };
+  let transferTx = "existing";
+  if ((await d.getFunction("balanceOf")(evm)) < par) {
+    const tx = await loanAsFeeder.getFunction("transfer")(evm, par, { gasLimit: 1_500_000 });
+    const rcpt = await tx.wait();
+    if (rcpt?.status !== 1) throw new Error(`par transfer to ${evm} failed: ${tx.hash}`);
+    txCount++;
+    transferTx = tx.hash;
+    console.log(`  ${par} par transferred from ${feederName}: ${HASHSCAN}/transaction/${tx.hash}`);
+  } else console.log(`  holder already holds its par`);
+  const holder: Holder = { evmAddress: evm, accountId, par: par.toString(), fundTx, transferTx };
   done.push(holder);
   writeDeployments((x) => {
     const f = ((x.feeder as Record<string, unknown> | undefined) ?? { name: feederName, source: (dep.institutions ?? []).find((i) => i.role === "lender")?.evmAddress, parPerHolder: par.toString() }) as Record<string, unknown>;

@@ -48,7 +48,7 @@ Meridian's desk wallet has completed setup (association, both standing authorisa
 | 1:15 | Approvals, Meridian compliance signs | "The compliance officer signs in her own session. Two of three: Privy signs, the venue broadcasts, the approval is on Hedera." Repeat for Halcyon trader and compliance in the other profiles (speed up). |
 | 1:35 | Execution room: stage 3 Scheduled | "The second approval scheduled the settlement on the Hedera Schedule Service, from inside the contract, with the contract paying. No keeper, no operator." |
 | 1:45 | Wait for execution; Portfolio / Register | "At the settlement time the network executes it: five million par to Halcyon, four point nine five million of cash to Meridian, in one transaction. If the buyer had been revoked in between, both legs revert. That happened on trade 2." (show the failed trade's HashScan reason) |
-| 2:05 | Interest page | "Interest is where the private terms live. The agent commits a salted hash of the rate notice; a Chainlink CRE confidential workflow verifies it in a TEE and releases only who gets paid what. A tampered notice is rejected. This period paid twenty-eight holders, twenty-five of them retail feeder accounts, in four atomic transfers." |
+| 2:05 | Interest page | "Interest is where the private terms live. The agent commits a salted hash of the rate notice; a Chainlink CRE confidential workflow verifies it in a TEE and releases only who gets paid what. A tampered notice is rejected. This period paid three hundred and eight holders, three hundred of them retail feeder accounts, in thirty-five atomic transfers." |
 | 2:25 | Blotter or README: reconciliation and export | "And it fits the agent's existing systems: the register reconciles against the agent's own export, with a hash attested on Hedera, and every settled trade exports as an LSTA-style assignment." |
 | 2:35 | Homepage | "Institutions on HashSphere, retail on public Hedera, one transaction shape. SyndicateLend." |
 
@@ -64,8 +64,18 @@ Any email works (keep the Privy dashboard **allowlist off**, and keep "+" allowe
 
 Everything above runs without a long-lived process: the market tick runs after API responses (`after()` in Next) at most every 20 seconds, so any page load drives the market. Locally, `npx tsx scripts/market-tick.mts` from `web/` runs one tick by hand.
 
-### Hosting prerequisites
+### Hosting checklist (Vercel)
 
-- Vercel environment: everything in `.env.example`, including `AUTOMATED_DESK_KEYS` (printed once by `scripts/provision-automated-desk.mts`) and the two Upstash Redis variables. Vercel's filesystem is ephemeral; with the Redis variables set the JSON store persists institutions, trades and the market log there.
-- Privy dashboard: allowlist off, "+" in emails allowed, the deployed domain in allowed origins.
-- The automated desks are provisioned once, locally, with `npx tsx scripts/provision-automated-desk.mts` in `web/`; the operator account pays roughly 10 HBAR per new judge desk plus a 20 HBAR gas top-up whenever any desk wallet drops under 8 HBAR.
+The app keeps its records (institutions, trades, notices, market log, workflow state) in a JSON store that is a file locally and Upstash Redis when hosted. `web/data/` is gitignored, so a fresh deployment starts **empty** unless it is given a shared store and seeded. Symptoms of a missing or unseeded store: sign-in works but signing says "not a desk member" (each serverless instance provisioned its own desk), Aldgate never quotes or accepts (the automated institutions do not exist in the hosted store), and **Create a demo transfer request** stays disabled.
+
+1. **Attach Upstash Redis** to the Vercel project (Storage → Create Database → Upstash Redis) for the Production environment. Either the Upstash variable names (`UPSTASH_REDIS_REST_URL/TOKEN`) or Vercel's (`KV_REST_API_URL/TOKEN`) work. Without them the hosted app now refuses to provision desks and answers with a clear 503.
+2. **Set the rest of the Production variables** from `.env.example`: the Privy app id and secret, `NEXT_PUBLIC_PRIVY_APP_ID`, `OPERATOR_*`, `AUTOMATED_DESK_KEYS` (the same two keys as locally, so the seeded automated desks can sign), `PLATFORM_ADMIN_PRIVY_USER_IDS` (your Privy user id, so you can consent to ordinary transfers as the agent bank; judges can approve the demo transfer without it), `DESK_RESET_EMAILS`, `NOTICE_API_TOKEN`, `CRE_NOTICE_ENDPOINT_URL`.
+3. **Seed the hosted store once from your machine**, so production has the same institutions, notices and trades as local development (the same Privy wallets, already onboarded on Hedera):
+   ```bash
+   cd web && UPSTASH_REDIS_REST_URL=... UPSTASH_REDIS_REST_TOKEN=... npx tsx scripts/seed-hosted-store.mts
+   ```
+   It refuses to overwrite a store that already holds institutions unless `--force` is passed.
+4. **Stop your local server from driving the same wallets.** From now on run local development with `MARKET_TICK=off` in `.env` (or without the Redis variables); two market ticks on the same desk wallets would race for nonces.
+5. **Redeploy** (environment variables apply to new deployments only) and verify while signed in: `/api/me` must return `durableStore: true` and the same institution id on every reload; the Loan register must list the five assets; Transfer requests must show Aldgate and Bishopsgate as ready.
+6. Privy dashboard: allowlist off, "+" in emails allowed, the deployed domain in allowed origins.
+7. The operator account pays roughly 10 HBAR per new judge desk plus a 20 HBAR gas top-up whenever any desk wallet drops under 8 HBAR; keep it funded.

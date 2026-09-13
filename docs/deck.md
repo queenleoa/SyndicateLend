@@ -73,7 +73,7 @@ Ten slides, one line of speaker notes each. Live app: <https://syndicatelend.ful
 - Inside a CRE enclave the workflow fetches the notice, matches the hash, reads every holder's par in one `RegisterSnapshot` call and releases only who is paid what.
 - A tampered notice (+25 bps) is refused and nothing is released. The paying agent settles the distribution in atomic HTS transfers, receipt on HCS.
 
-*Notes: 30-holder period paid in four atomic batches; the local CRE simulator is the disclosed fallback until Confidential Workflows access.*
+*Notes: a 310-holder period computed in one enclave call and paid to 308 holders in 35 atomic batches; the local CRE simulator is the disclosed fallback until Confidential Workflows access.*
 
 ---
 
@@ -81,7 +81,7 @@ Ten slides, one line of speaker notes each. Live app: <https://syndicatelend.ful
 
 - Register reconciliation ingests the agent's own lender-register export, marks AGREES or BREAK per lender, and attests only a report hash on HCS.
 - Every settled trade exports as an LSTA-vocabulary assignment record for the agent's loan system.
-- Retail feeder holders on public Hedera, institutions on HashSphere, one transaction shape: 25 feeder accounts onboarded and paid on testnet.
+- Retail feeder holders on public Hedera, institutions on HashSphere, one transaction shape: 300 feeder accounts onboarded on testnet (1,800 transactions) and paid their interest in 35 atomic batches.
 
 *Notes: the adoption path is a shadow register beside the agent's books, not a core-system replacement.*
 

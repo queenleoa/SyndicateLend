@@ -551,7 +551,7 @@ The MVP is complete only when a judge can:
 | FR-15 Freeze and pause | Done | `npm run demo:controls`; §14.8 lifecycle controls |
 | FR-16 Encrypted RFQ payloads | Not done | RFQ messages are synthetic plain text on the public topic |
 | Shadow-register integration (§10.3) | Done | Register reconciliation with HCS attestation and LSTA-style assignment export; §14.10 |
-| Retail feeder holders on public network (§9.5) | Done on testnet | 25 holders onboarded as KYC-gated register positions in 150 transactions; paid in period 3 in four atomic batches; §14.11 |
+| Retail feeder holders on public network (§9.5) | Done on testnet | 300 holders onboarded as KYC-gated register positions (1,800 transactions); period 4 computed for 310 holders in one enclave call and paid to 308 in 35 atomic batches, receipt HCS #57; §14.11 |
 
 One Privy desk wallet (Halcyon) has not yet executed its mock-USD association intent, so the payout script skips it with the reason recorded on the HCS receipt until its quorum signs; a catch-up payout then pays it. Meridian's earlier skip is settled the same way. This is a demo-provisioning gap, not a design limitation. Desk wallets on testnet are kept above 8 HBAR by the operator so their Privy-signed transactions can reserve gas.
 
@@ -992,18 +992,19 @@ The intended production topology has two layers with one transaction shape:
 - **Institutional core on HashSphere.** The agent's register, the RFQ market and settlement between institutions run on a private Hedera network, because lender positions, prices and facility terms cannot be public.
 - **Retail holders on public Hedera.** Feeder vehicles that pass a lender position through to many holders need public custody, public transferability and public-network accounts. Their holders live on Hedera mainnet, and the feeder is the bridge: it is one institutional lender on the HashSphere register and the issuer of many small positions on the public network.
 
-Public-network account and transaction growth therefore comes from the retail layer, and it ships in this repository: the section below onboarded 25 feeder holders on public testnet and paid them.
+Public-network account and transaction growth therefore comes from the retail layer, and it ships in this repository: the section below onboarded 300 feeder holders on public testnet and paid them.
 
 #### Retail feeder holders on public testnet
 
-`npm run demo:feeder -- --holders 25 --par 1000` (`ops/src/feeder-demo.ts`) creates feeder holders as real public-network accounts and register positions, with the same controls as the institutional lenders: alias funding creates the account, mock-USD association and KYC, ATS whitelist and internal KYC, then a compliance-checked transfer of par from the feeder (Northgate Insurance acts as the pass-through vehicle). Holder keys stay local and gitignored; addresses and account ids are in `ops/deployments/testnet.json` under `feeder`.
+`npm run demo:feeder -- --holders 300 --par 1000` (`ops/src/feeder-demo.ts`, resumable: an interrupted run completes half-onboarded holders instead of repeating them) creates feeder holders as real public-network accounts and register positions, with the same controls as the institutional lenders: alias funding creates the account, mock-USD association and KYC, ATS whitelist and internal KYC, then a compliance-checked transfer of par from the feeder (Northgate Insurance acts as the pass-through vehicle). Holder keys stay local and gitignored; addresses and account ids are in `ops/deployments/testnet.json` under `feeder`.
 
 | Measure | Result |
 |---|---|
-| Holders onboarded | 25 public testnet accounts, first [0.0.10486330](https://hashscan.io/testnet/account/0.0.10486330) |
-| Transactions | 150 in 753 s (6 per holder: fund, associate, KYC, whitelist, ATS KYC, transfer) |
-| Accrual (period 3) | 30-holder snapshot in one enclave call via `RegisterSnapshot`; 1,510,416.67 mUSD computed; tampered notice rejected |
-| Payout | 28 holders in 4 atomic HTS batches (receipt HCS #8); 6.04 mUSD per feeder holder on 1,000 par at 7.25% for 30 days |
+| Holders onboarded | 300 public testnet accounts: first [0.0.10486330](https://hashscan.io/testnet/account/0.0.10486330) (run of 25, 2026-09-12), then 275 more from [0.0.10526129](https://hashscan.io/testnet/account/0.0.10526129) to [0.0.10527915](https://hashscan.io/testnet/account/0.0.10527915) (2026-09-14) |
+| Transactions | 1,800 in total, 6 per holder (fund, associate, KYC, whitelist, ATS KYC, transfer); the second run took 1,376 transactions in 7,968 s after resuming twice (feeder account out of HBAR; a half-onboarded holder) |
+| Accrual (period 4) | 310-holder snapshot in one enclave call via `RegisterSnapshot` (about 2.1m gas estimated); 1,933,333.33 mUSD computed; commitment chunked over HCS #43 onward; tampered notice rejected |
+| Payout | 308 holders in 35 atomic HTS batches, 1,812,500 mUSD, receipt HCS #57; 6.04 mUSD per feeder holder on 1,000 par at 7.25% for 30 days; skipped: two desk wallets whose quorum has not signed the mock-USD association |
+| Earlier run (period 3) | 25 holders in 150 transactions (753 s); 30-holder snapshot, 1,510,416.67 mUSD; 28 holders paid in 4 batches, receipt HCS #8 |
 | Reconciliation | the agent's book carries the feeder as one line of 25,000 par; the register shows 25 positions; AGREES (attested HCS #7) |
 
 So the account driver is code, not a scenario: each additional retail holder is one more public-network account, six onboarding transactions, and one payout credit per period. What follows scales that up.

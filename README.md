@@ -96,7 +96,7 @@ The app has four workspaces: **Institution** (Privy wallet, approval policy, wal
 | HCS notice-commitment topic | `0.0.10459666` | [HashScan](https://hashscan.io/testnet/topic/0.0.10459666) |
 | Administrative agent (operator) | `0.0.10457020` | [HashScan](https://hashscan.io/testnet/account/0.0.10457020) |
 
-Two settlement scenarios are on-chain: a US$5m trade **settled atomically** by the network's scheduled call ([schedule 0.0.10460165](https://hashscan.io/testnet/schedule/0.0.10460165)), and a trade that **failed as a whole** after the buyer's eligibility was revoked between approval and execution, reason `AccountIsBlocked(buyer)` stored on-chain ([schedule 0.0.10460221](https://hashscan.io/testnet/schedule/0.0.10460221)). Interest for a 30-holder period was computed in the enclave and paid in four atomic HTS batches ([HCS #8](https://hashscan.io/testnet/topic/0.0.10459666)). The full evidence tables are in [HACKATHON-PRD.md §14](HACKATHON-PRD.md#14-engineering-record-moved-from-the-readme).
+Two settlement scenarios are on-chain: a US$5m trade **settled atomically** by the network's scheduled call ([schedule 0.0.10460165](https://hashscan.io/testnet/schedule/0.0.10460165)), and a trade that **failed as a whole** after the buyer's eligibility was revoked between approval and execution, reason `AccountIsBlocked(buyer)` stored on-chain ([schedule 0.0.10460221](https://hashscan.io/testnet/schedule/0.0.10460221)). Interest for a **310-holder period** (300 retail feeder accounts plus the institutional lenders) was computed in one enclave run and paid to 308 holders in 35 atomic HTS batches, 1,812,500 mUSD, receipt [HCS #57](https://hashscan.io/testnet/topic/0.0.10459666); the two holders skipped are desks whose quorum has not yet signed the mock-USD association. The full evidence tables are in [HACKATHON-PRD.md §14](HACKATHON-PRD.md#14-engineering-record-moved-from-the-readme).
 
 ## Try the hosted demo
 
@@ -127,7 +127,7 @@ Everything on chain is reproducible from the committed ids in `ops/deployments/t
 npm run demo:cre                                   # confidential accrual simulation for every asset (+ tamper run)
 npm run demo:payout -- --facility MHTLB-A          # pay the released distribution in atomic HTS batches (--catch-up for skipped holders)
 npm run demo:controls                              # HTS freeze / pause and ATS pause, with real failing transactions
-npm run demo:feeder -- --holders 25 --par 1000     # retail feeder holders as public-network accounts on the register
+npm run demo:feeder -- --holders 300 --par 1000    # retail feeder holders as public-network accounts on the register (resumable)
 npm run agent:reconcile -- --attest                # reconcile the agent's register export, attest the report hash on HCS
 npm run agent:export                               # LSTA-vocabulary assignment export of every trade
 npm run typecheck && npm run lint && npm run contracts:test

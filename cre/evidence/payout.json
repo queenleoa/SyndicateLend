@@ -1,45 +1,250 @@
 {
-  "ranAt": 1789313589556,
+  "ranAt": 1789329243974,
   "facilityId": "MHTLB-A",
-  "periodId": 3,
-  "commitment": "0x5f7386ca0b7306c7cb79c0d91996ae0435b3f9a73fdf926cfaa64595935c8fa1",
-  "mintTransactionId": "0.0.10457020@1789313576.594417627",
-  "transactionId": "0.0.10457020@1789166208.497320803",
-  "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789166208-497320803",
+  "periodId": 4,
+  "commitment": "0x03b1f82946f0e5d33ce4f451edfbfe50a89632b6d4886b3b7ea73c2b1922f7ce",
+  "mintTransactionId": "0.0.10457020@1789329163.822030587",
+  "transactionId": "0.0.10457020@1789329163.993995325",
+  "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329163-993995325",
   "batches": [
     {
-      "transactionId": "0.0.10457020@1789166208.497320803",
-      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789166208-497320803",
+      "transactionId": "0.0.10457020@1789329163.993995325",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329163-993995325",
       "holders": 9,
-      "units": "906135208328"
+      "units": "1810693541662"
     },
     {
-      "transactionId": "0.0.10457020@1789166209.592044415",
-      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789166209-592044415",
-      "holders": 9,
-      "units": "54374994"
-    },
-    {
-      "transactionId": "0.0.10457020@1789166207.312099538",
-      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789166207-312099538",
+      "transactionId": "0.0.10457020@1789329169.457896483",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329169-457896483",
       "holders": 9,
       "units": "54374994"
     },
     {
-      "transactionId": "0.0.10457020@1789166210.911781675",
-      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789166210-911781675",
-      "holders": 1,
-      "units": "6041666"
+      "transactionId": "0.0.10457020@1789329168.387974621",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329168-387974621",
+      "holders": 9,
+      "units": "54374994"
     },
     {
-      "transactionId": "0.0.10457020@1789313582.099547940",
-      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789313582-099547940",
-      "holders": 1,
-      "units": "664583333333"
+      "transactionId": "0.0.10457020@1789329169.180363289",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329169-180363289",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329173.758404311",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329173-758404311",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329177.256711296",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329177-256711296",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329177.295513672",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329177-295513672",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329180.794097857",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329180-794097857",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329184.000735844",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329184-000735844",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329184.090391926",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329184-090391926",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329185.093561204",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329185-093561204",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329190.593835973",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329190-593835973",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329191.136412548",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329191-136412548",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329193.473683886",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329193-473683886",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329193.248633379",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329193-248633379",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329197.994796788",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329197-994796788",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329197.695095135",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329197-695095135",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329200.812745643",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329200-812745643",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329202.797678843",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329202-797678843",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329207.774354333",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329207-774354333",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329211.661709141",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329211-661709141",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329210.100158943",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329210-100158943",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329216.904422280",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329216-904422280",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329217.434074183",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329217-434074183",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329220.669033063",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329220-669033063",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329221.849637976",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329221-849637976",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329222.688293297",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329222-688293297",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329222.536033119",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329222-536033119",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329227.328984808",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329227-328984808",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329228.983673030",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329228-983673030",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329228.588019477",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329228-588019477",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329230.376063291",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329230-376063291",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329231.196803358",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329231-196803358",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329233.023642256",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329233-023642256",
+      "holders": 9,
+      "units": "54374994"
+    },
+    {
+      "transactionId": "0.0.10457020@1789329236.688862750",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789329236-688862750",
+      "holders": 2,
+      "units": "12083332"
     }
   ],
-  "totalPaidUnits": "1570833333315",
+  "totalPaidUnits": "1812499999796",
   "paid": [
+    {
+      "holder": "0xa6be8bbdc1175538349e745ff7ab4a0f9d5cb2fb",
+      "accountId": "0.0.10477813",
+      "amountUnits": "664583333333"
+    },
+    {
+      "holder": "0xa481050626583a955d46001ff10121e80c0118d5",
+      "accountId": "0.0.10507254",
+      "amountUnits": "108750000000"
+    },
+    {
+      "holder": "0x5214634081368e28ebde02f772310bcf29b37349",
+      "accountId": "0.0.10520579",
+      "amountUnits": "42291666666"
+    },
+    {
+      "holder": "0xaf6c42c118b04d651f0239aa8b31906e1adc2b78",
+      "accountId": "0.0.10522898",
+      "amountUnits": "60416666666"
+    },
+    {
+      "holder": "0x9474dab78ee8de246ac9b3425ab53fe0c36a06eb",
+      "accountId": "0.0.10524350",
+      "amountUnits": "30208333333"
+    },
     {
       "holder": "0xe4691b01dfbb6c3022c9c1b82521999bf9c2797e",
       "accountId": "0.0.10459771",
@@ -53,7 +258,7 @@
     {
       "holder": "0x2f513e82c82de59700a731a44c37835009b95391",
       "accountId": "0.0.10459776",
-      "amountUnits": "604015625000"
+      "amountUnits": "602354166666"
     },
     {
       "holder": "0xdc0a4eb1d87e868ce03ccdc9896d67c5c628dffa",
@@ -181,20 +386,1393 @@
       "amountUnits": "6041666"
     },
     {
-      "holder": "0xa6be8bbdc1175538349e745ff7ab4a0f9d5cb2fb",
-      "accountId": "0.0.10477813",
-      "amountUnits": "664583333333"
+      "holder": "0x8c53635109fd84acc1990efeeb0dc0c3be758466",
+      "accountId": "0.0.10526129",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xb2776894049a63c1f11b31e6875259a4b6ac8b5f",
+      "accountId": "0.0.10526134",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x9b4884824113f03b7932517efe07c8fe5e9ffa7c",
+      "accountId": "0.0.10526141",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x8a008a27c0df34633e5462bfed4529d44e552f75",
+      "accountId": "0.0.10526144",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xb3253d0a753cc5b2830f90c4c5004803edcd87f8",
+      "accountId": "0.0.10526151",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xb92abe436251c4a87d85b9f14c44588d0298d29f",
+      "accountId": "0.0.10526159",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x1228a9f5a8b8bed7b7ee7a29ef3b35ef29a258e8",
+      "accountId": "0.0.10526165",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xe705107d79a5b850ca3edf44bf9d1de49d308bcb",
+      "accountId": "0.0.10526171",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x50df1dbda9634172be209accee9fef1effe7c1c6",
+      "accountId": "0.0.10526176",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xebc900666d68480089ad9bd275b292e236fbc4f5",
+      "accountId": "0.0.10526181",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xa6e97cc35528e7a6d9d522542772a89992fec1c9",
+      "accountId": "0.0.10526187",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x331728ec1a2ae1279e704888c5d0667d890c1fae",
+      "accountId": "0.0.10526193",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x12c7937ca1a25e5f453dd2aa2e6e088a9ca7477e",
+      "accountId": "0.0.10526203",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x0e47a306420d6ba53edfe3c6c94dcc0c76048a97",
+      "accountId": "0.0.10526211",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xdb617083ddc5699ac4d1ca0cb4151a73f743c15a",
+      "accountId": "0.0.10526217",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x08aa397e32f60818e0e1ed1e1f8b9704b26a1b17",
+      "accountId": "0.0.10526226",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x4ba66ce07f044e6ad4d26df5308c43f6130a3ff6",
+      "accountId": "0.0.10526232",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x5cb9f7fe9d9550e62dfa1384a31d089128d764fc",
+      "accountId": "0.0.10526237",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x0fc81df0c30b8599547b8110d7341d3f4a3cafa9",
+      "accountId": "0.0.10526238",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x3e1a2eed254e76becfcb8e9628fd1e98ebb9eee4",
+      "accountId": "0.0.10526243",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xce3acb3536f7ea5ce9b09467f6c5b50c057ac61b",
+      "accountId": "0.0.10526251",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x221d6a44bf14c325e5ab9f55570e679c739e9838",
+      "accountId": "0.0.10526259",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xf6d2d517590c663fdc646896202088a011196d4a",
+      "accountId": "0.0.10526266",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xae3a9b8234de67562e51d475665cbe93c32f22e9",
+      "accountId": "0.0.10526273",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x727871c20ade2c67a155d0332ffb31da2e77e107",
+      "accountId": "0.0.10526274",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x58b21569f073d791788f86d49178f97ddab5cee5",
+      "accountId": "0.0.10526279",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x2588653a1e6e467858d2139d7d94d55c86ac4d1c",
+      "accountId": "0.0.10526288",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x2e84ddedccca37463e3ba96d5db74d5e7761c601",
+      "accountId": "0.0.10526291",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x4f6c53712adfa59c35c4951273ccae1c347535b9",
+      "accountId": "0.0.10526297",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xff64f25ffd68be94655e9d954a6d7e97d507f4b5",
+      "accountId": "0.0.10526302",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x2a933951e3efeed05723bb85ab12b2e4396d308d",
+      "accountId": "0.0.10526307",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x401f3106291ffc98b5c0abd735cb4823af3f551c",
+      "accountId": "0.0.10526313",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x4d76d75c3d0437f7a0a3568efe2f5414e33cd5b0",
+      "accountId": "0.0.10526316",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x30709c1814f55db55eb5b153f1be1508744f5889",
+      "accountId": "0.0.10526323",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x8b21018d8ca5d78153f0087af9645bfeaca52939",
+      "accountId": "0.0.10526326",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xba0712e62b5f1bf39f177909932e355940869720",
+      "accountId": "0.0.10526327",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x0080ad7e0e2ee3df43eabd356f42ed89a2b08fe5",
+      "accountId": "0.0.10526329",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xbcb9768f6b7324cece55e0130ab924f7e85d71b1",
+      "accountId": "0.0.10526338",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x289399c36e31869cad92c9330c47b9bfae2ee771",
+      "accountId": "0.0.10526341",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x76b28c70f1fb3d205a44a01473e0384ab18772b7",
+      "accountId": "0.0.10526346",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xf3277fab6877bcf3548470d98c5132e4ea38509d",
+      "accountId": "0.0.10526352",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xeae2c9383e7f03f0600f5b5d1bb4d9fafb9908fe",
+      "accountId": "0.0.10526360",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x980bb7f22b6e59cfc312f5895b6899b6be6972c6",
+      "accountId": "0.0.10526363",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xdced23dc909b1f57443e05d163ab2266d85ee009",
+      "accountId": "0.0.10526371",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xc671575bab49ce7b6fcb06ee721d1c515015d38a",
+      "accountId": "0.0.10526388",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x6088b996e04c5012e1a6811902376bd8a22ffa9f",
+      "accountId": "0.0.10526396",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x6f777898d6a16a82d16f276cfcd219789749a97c",
+      "accountId": "0.0.10526435",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x7b8e99b583c519b1e61282a85a4257a9a2a8b0e7",
+      "accountId": "0.0.10526441",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x1f8e0270b04e289e17f9d1686dc500dec6e05f28",
+      "accountId": "0.0.10526449",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x175ae5a1b0b2526f3690d4275eac6b0d7d13bb95",
+      "accountId": "0.0.10526454",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x83dbd872ca1a6f257110e190dc5a25c485e48097",
+      "accountId": "0.0.10526462",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x912002bec23d28b35af287331f4c5147a7d6548b",
+      "accountId": "0.0.10526471",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xdc8dbbf5f4ec0256c491b63500ee36500f41274c",
+      "accountId": "0.0.10526480",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x83ff8a11b0f22cedf049b94c58fd243b630e9f60",
+      "accountId": "0.0.10526492",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xfb55775a237a38b5b0110eb15d50f2830704839c",
+      "accountId": "0.0.10526500",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x0294bfa8bbc3d0e51fea7fa839ac4ad981937ffd",
+      "accountId": "0.0.10526504",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x866c224f47157cc8db8fb69a06b004fa081dde76",
+      "accountId": "0.0.10526517",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x7b4564ccf67ce5d913b393e88c16a0d2dc16eba2",
+      "accountId": "0.0.10526528",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x87828f5a056c7a926ad4e8484152304fa1e59b82",
+      "accountId": "0.0.10526539",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xf00d11ba6cfd135751115064409ff3565dfe7bb2",
+      "accountId": "0.0.10526545",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x3460479b9915e877c12bdbbc0804558531f03e24",
+      "accountId": "0.0.10526551",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xf7769e7ed73a86d8a6057ad532ecfce240aed818",
+      "accountId": "0.0.10526556",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x6bdf697a019562ab40382f35a2fee66dfe695faa",
+      "accountId": "0.0.10526564",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x042ee1e7bea90f24f6ced5ec642335ed8ab889f4",
+      "accountId": "0.0.10526578",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xb5c071af8693ad0ed44f7ee91561138b1fc78ba8",
+      "accountId": "0.0.10526588",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x3bd6538973bd942b235130ce1844774251f05cb2",
+      "accountId": "0.0.10526597",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x1e899813edfff87b39ee5e987cca63b3712555b9",
+      "accountId": "0.0.10526603",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xa42ed3185d1d10b44b47beca1a62e6eced28911a",
+      "accountId": "0.0.10526607",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xcd7124b99be713ba01dc2ddc8382b538923345f5",
+      "accountId": "0.0.10526611",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xd8a80ca625d8f098d5887f3a00d1b92de9b51e06",
+      "accountId": "0.0.10526623",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xe482179dc6aeef4b2fc25c73f33f5b2234488729",
+      "accountId": "0.0.10526627",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x8b7912dd5bc700467df0989c391e92ddd76a1412",
+      "accountId": "0.0.10526629",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xafb17434e14da2fffcd541c8714d9c51528f70e5",
+      "accountId": "0.0.10526634",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x92543af9d9a8e8df0657c7f12ce8c4cbba53befa",
+      "accountId": "0.0.10526641",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x84e24b899e8a64f6edca1a133f52c5599040d987",
+      "accountId": "0.0.10526642",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x5dab6914a8849fd6756f3f93a6fde05f5f71851b",
+      "accountId": "0.0.10526651",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xb3e4f9428d55005539e044ff2d57db242754b7e5",
+      "accountId": "0.0.10526658",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xa7253fe8d8b4e327cad8172425d38bac9d578535",
+      "accountId": "0.0.10526667",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xe8a7605482e7031e1c3c1d42099a54afa44acbc7",
+      "accountId": "0.0.10526672",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x60ae21e40961722554d6b7e52c607d7fb36659c1",
+      "accountId": "0.0.10526677",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xe22f2451c8c51424537774b40673dc6e8b9a766f",
+      "accountId": "0.0.10526681",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x342249ae01fc4b7dfd2c5f48168d9b08cd2c06ae",
+      "accountId": "0.0.10526686",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xbe826558b7748d096578d4e018fc82b81470fae3",
+      "accountId": "0.0.10526691",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xf8f400c0c7e6c8ce7e3990e526c0befc96488612",
+      "accountId": "0.0.10526697",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x67d3c1c43437b55429ceb07976ca678194cb31d5",
+      "accountId": "0.0.10526708",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x846776229f1ae5c1dd9d62f34e49029a309d9533",
+      "accountId": "0.0.10526717",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xacc9743e677ddc4380a6c46e9761d359b21ed98e",
+      "accountId": "0.0.10526726",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xfa184dc782d8c669e682b7876d6cdc565382e5c9",
+      "accountId": "0.0.10526731",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xd695d711b6000969b7cc0e1ca2a4a45dc39f50de",
+      "accountId": "0.0.10526736",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x279dfa29a78e64616491b6a3b76942437a9f5480",
+      "accountId": "0.0.10526739",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x1b0097a19df7401e2f1577f3740ce4882a01cfd6",
+      "accountId": "0.0.10526742",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x7d075e47d754e4c3dce31b30225657131a58c238",
+      "accountId": "0.0.10526745",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x8ac61b3ffccaaf6f36f988a6fc12598a78008ae6",
+      "accountId": "0.0.10526754",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xea71ecdc6d7637e1498023fc03b3b22adc15c8ab",
+      "accountId": "0.0.10526767",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xf3875bfc91203b5b17555909f080468a84e523ac",
+      "accountId": "0.0.10526772",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xa7bcfe21ce5ea6fb973794af5d1532ec638b70f2",
+      "accountId": "0.0.10526775",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xbdf9b80b29ffb64871b948112c2820f44b65b596",
+      "accountId": "0.0.10526780",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xe504c6f896484f637167e50337f67c736f9184ef",
+      "accountId": "0.0.10526789",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x8eca4f315cd2c21a43af7a60c0ed3260ece82750",
+      "accountId": "0.0.10526795",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x4631760bf99d062d4972e228aaa3f77319d93480",
+      "accountId": "0.0.10526801",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xd4463c08f76c59c6bcfb75a2d5619ab600565c10",
+      "accountId": "0.0.10526807",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x6e2e1f64e8969557f377dca656e2a28526fec1eb",
+      "accountId": "0.0.10526813",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xffe927b3ef88ad75553470e5c96739ecf4b78d19",
+      "accountId": "0.0.10526816",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xdb04cc7591c9dc965d0aecf274cbb96e0507f127",
+      "accountId": "0.0.10526823",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x8f8139ae040055ef24d39ae5029c162aa32c4ee8",
+      "accountId": "0.0.10526827",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x1851d4196eca62879f5244ce0b7dbc010d584ed5",
+      "accountId": "0.0.10526829",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x5beafb557a682e34acc1354ef1f63ade61d85781",
+      "accountId": "0.0.10526831",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x1a68c4c0dec54634a4a761cdc3e164ce05b22613",
+      "accountId": "0.0.10526836",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x5854cbfa2e832634fd5a705ef28b892fb04af230",
+      "accountId": "0.0.10526841",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x2325c54025349b7d836ef66f715b8bad71a3b5c6",
+      "accountId": "0.0.10526846",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x3f15ddd71995c33093523a0d199c41d299aead70",
+      "accountId": "0.0.10526852",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xd44cc8909deaf4f66b134c26b2fb6a431c94ff38",
+      "accountId": "0.0.10526860",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x9a928fdfd4dcfb4fe11b90eaa267454ac23414b0",
+      "accountId": "0.0.10526863",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x3d635a533be90d71a5f3fac254e3ac545d8c359e",
+      "accountId": "0.0.10526871",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x6cc22ec869e2cd07502e5da0826fe3e5c127bd1b",
+      "accountId": "0.0.10526879",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xd9cdd702d294087a78a6096b6434143fd57318dc",
+      "accountId": "0.0.10526897",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xb02fb1635cb6114424d4178306ac86437f43caa1",
+      "accountId": "0.0.10526899",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x033aed1048fa65de5e565241ad7662846a38fb31",
+      "accountId": "0.0.10526905",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xd590b5f220f717d469fa1f97e4abe84e89c4b712",
+      "accountId": "0.0.10526911",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xfbc228c316441345446a52423acf14f978458f48",
+      "accountId": "0.0.10526916",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x28f1c3074e5662c41b53238167252c8466372eaf",
+      "accountId": "0.0.10526917",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x2d59ec6ca2f5c0f2ce9cc60912ab8961bf9dfc51",
+      "accountId": "0.0.10526923",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xedc02d4110e91be69b273d112e2e879956461164",
+      "accountId": "0.0.10526928",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xac8386653ce5cd747a0ee5744bfe54acfbb883fa",
+      "accountId": "0.0.10526933",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x8edeaa2ddbaddd183f8caf50b18fe1a2637100f0",
+      "accountId": "0.0.10526941",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x03237df175bb0ba6fb136415826278205433b59d",
+      "accountId": "0.0.10526951",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x6696680dc1d1ce878ee31e3847a018263c33f03b",
+      "accountId": "0.0.10526957",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x0988eeac0a2b24b6d3ef705bd3a19a1949dc700f",
+      "accountId": "0.0.10526964",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x20ed6bb57b385a6351bf657c0e2c2fe207565e8e",
+      "accountId": "0.0.10526969",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x077b9d96ca8512bf33298102e971e5240b0e8071",
+      "accountId": "0.0.10526979",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xb3defe839de5c6d034b5f315fd71f9dfce233606",
+      "accountId": "0.0.10526985",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x791c10005f358b1821f5cc09b644d698b6ff1ea1",
+      "accountId": "0.0.10526993",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x7be1eb4922d55490bd8a184cd43245c345a1fac9",
+      "accountId": "0.0.10527002",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x7c73155e79e03a92c2d789c00f52d244f333eeea",
+      "accountId": "0.0.10527011",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x07065dcdd3f103146ce1ae2ecf6f4b69ed086a35",
+      "accountId": "0.0.10527015",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xee4c4f33f93d1fe25b57408d978980d2deaa23d1",
+      "accountId": "0.0.10527024",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x8c375cce783d35faa58a246f030cea41e3ca01ee",
+      "accountId": "0.0.10527036",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x5dc812cc13673b54a8cfd4d867946852e7c1ce49",
+      "accountId": "0.0.10527043",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x4b9ab2763d7208b3a5797f6607b0b2af79093cf2",
+      "accountId": "0.0.10527051",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x58ef91516c0cd6bf2c6a7693fddb845d95e0fb57",
+      "accountId": "0.0.10527058",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x690df495fdd0a1602145af4c08d63c5c4f8f1894",
+      "accountId": "0.0.10527064",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xd4fe09b9a7e225d6da18d965adc6ed9a31d59180",
+      "accountId": "0.0.10527068",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xc67472518466b54bcd74f2c268ba5e9a37f2b155",
+      "accountId": "0.0.10527079",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x291d8dde20332c3b7dd6cfe12abdaeb2dff688fe",
+      "accountId": "0.0.10527088",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x6b2cecd020da5f68b44605f64f7d898df9da8dd1",
+      "accountId": "0.0.10527096",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x828ffdef0b6f6acdd76db8bc3947b2c6b0d6c62d",
+      "accountId": "0.0.10527102",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xb62ed635f8408294524d6c41b4f3ec92d94fdd73",
+      "accountId": "0.0.10527108",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x2d6d7ffa0ad66c12d094fa6fef0abe881d54170a",
+      "accountId": "0.0.10527114",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xd0a62e36863f26a977a4a91314cc70305fe42133",
+      "accountId": "0.0.10527123",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x31177aadc5db567f9cca0801e911ff36d5d6919e",
+      "accountId": "0.0.10527127",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xb3b120396963916d8c7449d19cf45bebfb91b10d",
+      "accountId": "0.0.10527130",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xe31ff9ef236a6d9fd6c60ba1ed5552e265cf8451",
+      "accountId": "0.0.10527134",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xe50f2f65cf9ca9cdc302078e9cf018888d7deb83",
+      "accountId": "0.0.10527142",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xd5754b911655a08c04218549139b9512e58b4fb2",
+      "accountId": "0.0.10527147",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x77b6adcc42e855c39b1f969b73d6408a69820b4f",
+      "accountId": "0.0.10527154",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x219f62a6193e7fdf3e023e76dceadf118877e6cc",
+      "accountId": "0.0.10527161",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x48e8fba39fe05798f3002244684df7af464a2670",
+      "accountId": "0.0.10527167",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xd0c47f4c80e95702e9ef9ed2984eff12d0924185",
+      "accountId": "0.0.10527172",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x4c9dbc8d6d0875ec052e4f36e86f4828e9ad666e",
+      "accountId": "0.0.10527176",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x25fb772b7e98e6b85f46b716f93214858ce302c2",
+      "accountId": "0.0.10527180",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xb52bdaa60c833e4837fcc7c97a519c2667c4ac6d",
+      "accountId": "0.0.10527187",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x61ed8f7044ac2996577b1411c0e5350eb2eefea5",
+      "accountId": "0.0.10527192",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x16ef45eb0597c9fbbe791a66234261e7e571ac72",
+      "accountId": "0.0.10527202",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x0afd1bb51005a4143839b084e4ce00a0b4dcc6f5",
+      "accountId": "0.0.10527209",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xf0f696faecfb0d4f38997abd9fcca73832324763",
+      "accountId": "0.0.10527217",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x4bb8e84807d21cc4bd2e2a1203dec5c3cf94cb23",
+      "accountId": "0.0.10527223",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xa2a993ed7bf75a0f17620950fbc57c846818e18d",
+      "accountId": "0.0.10527229",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x2a3a7180504dcd97c893ab175b5b7cde4e36cbf7",
+      "accountId": "0.0.10527234",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xe530c469d036ad0c6899afadc6b3493c90495a1d",
+      "accountId": "0.0.10527235",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xda06b5c1628fc8eb3747d096bcabd9a548a342b2",
+      "accountId": "0.0.10527239",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x0abc61cb8d981ec2aa4cd5f5f5af46dcddc7c7b0",
+      "accountId": "0.0.10527248",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x1244973de07e7fb63f1e8b8493de3fb636914d1d",
+      "accountId": "0.0.10527258",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xf377bdf6a8609801268b9885a014340a571d8236",
+      "accountId": "0.0.10527266",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xfdb6089a4d410767d0a8706e0646a2d664dd0419",
+      "accountId": "0.0.10527268",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x341d511e20251c80abb7f98cf63f72af8e0c32b5",
+      "accountId": "0.0.10527273",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xb1ba4002758d18836f1b6234f5b6447180829c49",
+      "accountId": "0.0.10527284",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x0e5d518567cb31174b27b26c1850ae1c65c73093",
+      "accountId": "0.0.10527290",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x0eb43ede5d9c63353527a3597e2aca7b5c36695b",
+      "accountId": "0.0.10527297",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xcd28a591b35416fe03d23469878c4efd5e0f247b",
+      "accountId": "0.0.10527302",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x8c80dd94d4ca20f15d0836ec4294b4102b564f36",
+      "accountId": "0.0.10527308",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xb45d15942ca2ce6305871f40b84d42d1d32aec45",
+      "accountId": "0.0.10527313",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xc14aabb9faefca0ad14e6cc6ac1abbc189ca8bf2",
+      "accountId": "0.0.10527319",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xcfa4ea2570bc1248a01a28cb23b8cc02ff9fed77",
+      "accountId": "0.0.10527323",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x276b814096ba18dca279332859d066aeaf19a463",
+      "accountId": "0.0.10527324",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xb1f0b5f3e8c1f3b4705817500fcde2319109e749",
+      "accountId": "0.0.10527325",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x86e1b543378c485a36c6d0f00994661ab2b4b68d",
+      "accountId": "0.0.10527328",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x605f59ad80ac1f555cac9b4ce6004e515ad3d250",
+      "accountId": "0.0.10527336",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x1287d337616525944729f93b25b417a0e4b5e2b7",
+      "accountId": "0.0.10527341",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xfeaf099f5a2a3004d154fc6d34c87cf6e07e516d",
+      "accountId": "0.0.10527347",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xd7e8fa83791eeeac3e70331ca5d5cc8701cdebe2",
+      "accountId": "0.0.10527356",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xcf5ea9c6cbaafc17540fa15b2f737ebf62207f54",
+      "accountId": "0.0.10527363",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xa95fa23c2799f4d5b6562b4b429eff35bc1f0de0",
+      "accountId": "0.0.10527373",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x65ff59f7f887e793dbf9d6aee78aaffbc80acbd9",
+      "accountId": "0.0.10527383",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x2ed549c71ebf4197f310cd52d1304a6fe6c7dbce",
+      "accountId": "0.0.10527392",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x9f146e42db6960066117f7f6876e097294bef27d",
+      "accountId": "0.0.10527396",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x6d658d944a8de2c66ad2968038c65702847eef36",
+      "accountId": "0.0.10527401",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xc4e4fdf36fe0f6177bdc7a8c315ae5e39a159bb0",
+      "accountId": "0.0.10527407",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x856e1dadfdcc23318c8722c03e92a0f461eb569b",
+      "accountId": "0.0.10527410",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xe663fc1f58fa7dbb3fe7f089cfd30604a637512c",
+      "accountId": "0.0.10527418",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x00d3459980de7fb11f23ae6d917ddbcaa89f0d49",
+      "accountId": "0.0.10527423",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x667b536cc3c9b05aca0eb5d907ba67e5ec33d5a7",
+      "accountId": "0.0.10527425",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x22d8d054e3309b74faded1a5f51267a1b8c2b7e9",
+      "accountId": "0.0.10527433",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x9789dfd1839d30b04999f4920b48bf3bed994d9e",
+      "accountId": "0.0.10527438",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xc7012a08a86008fb9958fa8636fa88b5044d0dc9",
+      "accountId": "0.0.10527449",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xb56d45d234742ad87c65feb54babd9565c80191e",
+      "accountId": "0.0.10527455",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xae85d22f94598841bbebedc7bb4d95fb16ab8a91",
+      "accountId": "0.0.10527459",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x0c15879989bec1a5c125a15d3b165c20f212b534",
+      "accountId": "0.0.10527467",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x21ff3b3a3cbf39beb3cb1b72c8314e59ae067ef9",
+      "accountId": "0.0.10527474",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x39d08bbdcc195f95e164cc81c8e020b609db3728",
+      "accountId": "0.0.10527484",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x185dce74af4faae1eb97986c4a9909f753e1106d",
+      "accountId": "0.0.10527495",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x4c9b00402df2082af50afd7ef353dffb2441cedb",
+      "accountId": "0.0.10527504",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x038b87d3e4b94cc7fba3f355b8135b4383a6ad7a",
+      "accountId": "0.0.10527511",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x729e35dcf4123ee92ef8aca9718585ae96be465b",
+      "accountId": "0.0.10527522",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x64c722221a71a95a74166f136fabea8fe806f060",
+      "accountId": "0.0.10527532",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x38fab4292a2438728a6a8df828c549eca6ffde98",
+      "accountId": "0.0.10527541",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xa4887363eb460fe5069e1161f42730f524d92c78",
+      "accountId": "0.0.10527546",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xd1d748aca1d4e7652e42b1b7395f3cd5521db0ca",
+      "accountId": "0.0.10527552",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x41c35e4a8af5fb92f0ff0ff561366ad209db21ab",
+      "accountId": "0.0.10527557",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x3c2d21cb6fb18eb220a83886cacecfff63fef273",
+      "accountId": "0.0.10527560",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x856f6800dd7821011233b5367163c52ea7f05369",
+      "accountId": "0.0.10527572",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xfdd4125d6d15d24a52248b8ea881393ae25ee8ec",
+      "accountId": "0.0.10527580",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xa6a0c72cc473070cda5a09a82a2e56dbfcedd84f",
+      "accountId": "0.0.10527588",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x5d27df00e2ef15efc3f8193f55383c032f51dfa4",
+      "accountId": "0.0.10527595",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xfab93aa68138ea12b0a5974c68b1630b4a862742",
+      "accountId": "0.0.10527601",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x61aa1342ab9d0188ab6b7c0de62ac80da22a2d7b",
+      "accountId": "0.0.10527603",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xb2b9afff1178a46eeba334a49b85a0ea8ff7e985",
+      "accountId": "0.0.10527611",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x5a5a50801940c4c2f86e5d54249a357ac83eb172",
+      "accountId": "0.0.10527620",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xb867dd097d11568d255d97468c78aff4446308b0",
+      "accountId": "0.0.10527622",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xa4b010409745af55dde0010ad73d942b00e00ed6",
+      "accountId": "0.0.10527624",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xbab939479ea5982f15f34f26e242dcefecf9ff4d",
+      "accountId": "0.0.10527626",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xc56f8e7c070d2deb37de153437017fcfa17f2bfc",
+      "accountId": "0.0.10527635",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x2e62d1df65c6c59f9b126b5c503881b567aecac9",
+      "accountId": "0.0.10527637",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x93d132fb42b75b03c4ce1131d03f0df018f06a90",
+      "accountId": "0.0.10527642",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x96387ec742e6a40c92e2d66b3b00b6160df989d4",
+      "accountId": "0.0.10527648",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x2317026f6394e17086cace0c4601457fe8a4aaf7",
+      "accountId": "0.0.10527653",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xd41a95165482ca2f974f5b89f833be2d66f9ac93",
+      "accountId": "0.0.10527661",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x2c61b7ec6f337ab5335db64cfeefdc540143722a",
+      "accountId": "0.0.10527663",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x2fff8d95dcc5b66f667cb7bc60b1fde2883e572b",
+      "accountId": "0.0.10527667",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xcfc1652e657c21d0d2bb67b0eb5c0d71aa7a2eef",
+      "accountId": "0.0.10527671",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xd6268abff75cf8d05e8dac3a3325e7b2d1202294",
+      "accountId": "0.0.10527675",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x0b10fcef0da9e026d5d11c830468373ca56f5e4b",
+      "accountId": "0.0.10527681",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xaef16ca3f3d1dbaa8ade7742fb334de7d423176e",
+      "accountId": "0.0.10527687",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x693a5d1366e71a8ed05e679a91bc081e1d95c0e0",
+      "accountId": "0.0.10527693",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x0665f632ea44ef6803b4fe5856b60095c271c44b",
+      "accountId": "0.0.10527704",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xaee6b7236663fea391309119e913359bd288116f",
+      "accountId": "0.0.10527709",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x8275c38811782f2a94b123a90085e2531049642c",
+      "accountId": "0.0.10527719",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xb85ed701873dbe7fb42702b8aad12698eab14073",
+      "accountId": "0.0.10527725",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x5846a5f3d478b9dd9c9ad39b8f9d4d5fe84ca427",
+      "accountId": "0.0.10527732",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xed5259babf8b0c25a87c593a6a1e2568233c4e38",
+      "accountId": "0.0.10527734",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x6948921ea07872bd72c82d7cbce2f73f2a9710db",
+      "accountId": "0.0.10527745",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x69120bb5ea3f416c9831ac1dcb93d70a2f2b5928",
+      "accountId": "0.0.10527756",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x071478fdb982fd7a13fa60505989647f7385c7b8",
+      "accountId": "0.0.10527763",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x9906a3cf82192f3cb9a948e09f6777ea7c07b4c2",
+      "accountId": "0.0.10527770",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x2b8558940c6a8e9416cfd3ead7c17de1594b26f1",
+      "accountId": "0.0.10527780",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x107d333362b393d9f4ac3a40621bc31707d94225",
+      "accountId": "0.0.10527789",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x7f264005baca482a3af6e51dad8a3da95c0c5261",
+      "accountId": "0.0.10527793",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x0aa81f2f727102188329146e66f2d4ce3f52b800",
+      "accountId": "0.0.10527801",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x14bc40972b1f60a8388406997bd35be2368697eb",
+      "accountId": "0.0.10527808",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xad51ded55c3190d8af5774eb15abea7587b768cb",
+      "accountId": "0.0.10527814",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xcb169cc77903ae76834d5a694d53f6eeeee2b979",
+      "accountId": "0.0.10527818",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x6a7feb6637c38fd44d56bf7672569b7e32f1aff1",
+      "accountId": "0.0.10527824",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x1939370bcd4b805cc0a7672c9a9dab473db8498c",
+      "accountId": "0.0.10527829",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x717779a9a04a2fd082e4c245ee954c2fd8bfc5e1",
+      "accountId": "0.0.10527831",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x4580f10edb6769a27599ddccd98fd7acd245a2d0",
+      "accountId": "0.0.10527835",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x683ab0d3ad416c2d08994213d86c391ad83fcf70",
+      "accountId": "0.0.10527843",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xbcc90c580c076731bea066f0fcb0265e995b0265",
+      "accountId": "0.0.10527845",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x965f98fdc10e730cd108ffeeeee10c8d8ac0f268",
+      "accountId": "0.0.10527852",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x981750522193ed549f619d30d1cc9cad3b9e0d33",
+      "accountId": "0.0.10527861",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xed45c9ac01289701e32200c44680c5782ae67d8f",
+      "accountId": "0.0.10527867",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x4dc06788ce17118d67d84b46fed069b8cc4695c0",
+      "accountId": "0.0.10527875",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xcb2a4e1cf36feeb22a14ee36412344b4671eefd3",
+      "accountId": "0.0.10527883",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xb0e6e26ff06248f2b152151bb16850ea49dd154f",
+      "accountId": "0.0.10527895",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x6b7d9536b3f7dbe32d72006170ef31595f5ef369",
+      "accountId": "0.0.10527903",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0x9404d3ed9a04f9ea036dc195db60ef495b2dddd2",
+      "accountId": "0.0.10527909",
+      "amountUnits": "6041666"
+    },
+    {
+      "holder": "0xa5ffe0d35e7d87606494ed24560b54b0b6bc08ba",
+      "accountId": "0.0.10527915",
+      "amountUnits": "6041666"
     }
   ],
   "skipped": [
     {
       "holder": "0x9c2e3a418d90d9c6fd7f3c417ec5730a3e65498b",
       "reason": "mock USD not associated (desk quorum has not executed the association intent)"
+    },
+    {
+      "holder": "0x874fd6407a9ad938b079ee9162443fb37590aa6b",
+      "reason": "mock USD not associated (desk quorum has not executed the association intent)"
     }
   ],
   "hcs": {
-    "sequence": 39,
-    "transactionId": "0.0.10457020@1789313582.485986122"
-  },
-  "catchUpOf": "0.0.10457020@1789166208.497320803"
+    "sequence": 57,
+    "transactionId": "0.0.10457020@1789329234.216841241"
+  }
 }
