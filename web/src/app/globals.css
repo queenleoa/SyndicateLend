@@ -21,8 +21,9 @@
   --line: #e1e7ef;
   --line-strong: #c9d3e0;
   --ink: #14213a;
-  --ink-muted: #3f5468;
-  --ink-faint: #5b6b85;
+  /* Muted copy is deliberately dark and medium-weight: it is text, not decoration. */
+  --ink-muted: #2c3c50;
+  --ink-faint: #46566b;
   --ok: #1f7a4d;
   --ok-bg: #e6f4ec;
   --warn: #9a6700;
@@ -63,7 +64,7 @@
 }
 
 html { color-scheme: light; }
-body { background: var(--paper); color: var(--ink); font-family: var(--font-sans); font-size: 16px; line-height: 1.55; }
+body { background: var(--paper); color: var(--ink); font-family: var(--font-sans); font-size: 16px; line-height: 1.55; font-weight: 500; }
 button, input, select { font: inherit; }
 
 .num, table td, table th, .mono { font-variant-numeric: tabular-nums; }
@@ -171,7 +172,7 @@ table.grid tr.clickable { cursor: pointer; } table.grid tr.clickable:hover td { 
 .landing-signin { justify-self: end; color: #d9e8f7; border-color: rgba(255,255,255,.18); background: rgba(255,255,255,.045); padding: .6rem 1rem; }.landing-signin:hover:not(:disabled) { background: rgba(255,255,255,.1); }
 .landing-hero { min-height: 690px; max-width: 1440px; margin: auto; padding: 88px 54px 74px; display: grid; grid-template-columns: .93fr 1.07fr; gap: 78px; align-items: center; position: relative; z-index: 1; }
 .landing-kicker { display: flex; gap: 18px; font: 600 10px/1 var(--font-mono); letter-spacing: .11em; text-transform: uppercase; color: #66c7e9; }.landing-kicker span + span { color: #788da4; padding-left: 18px; border-left: 1px solid #294158; }
-.landing-copy h1 { margin: 27px 0 24px; font-size: clamp(3rem, 5vw, 5.5rem); line-height: .98; letter-spacing: -.058em; font-weight: 560; color: #f7fbff; }.landing-copy h1 em { font-style: normal; color: #6cc4e3; }
+.landing-copy h1 { margin: 27px 0 24px; font-size: clamp(3rem, 5vw, 5.5rem); line-height: .98; letter-spacing: -.058em; font-weight: 600; color: #f7fbff; }.landing-copy h1 em { font-style: normal; color: #6cc4e3; }
 .landing-lede { max-width: 650px; font-size: 17px; line-height: 1.7; color: #a9b9ca; }.landing-actions { display: flex; align-items: center; gap: 25px; margin-top: 34px; }
 .landing-primary { background: #eff9ff; color: #0a2035; border-color: #eff9ff; padding: .82rem 1.15rem; box-shadow: 0 10px 30px rgba(76,177,216,.15); }.landing-primary:hover:not(:disabled) { background: #fff; }
 .landing-text-link { font-size: 15px; color: #8ca1b5; text-decoration: none; border-bottom: 1px solid #33495e; padding-bottom: 3px; }

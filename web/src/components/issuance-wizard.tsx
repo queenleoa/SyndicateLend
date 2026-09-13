@@ -204,7 +204,6 @@ export function IssuanceWizard() {
           <div className={styles.amount}>{/^\d+$/.test(terms.principal) ? money(terms.principal) : "—"}</div>
           <p>{terms.facilityType} · {allocations.length} lender{allocations.length === 1 ? "" : "s"}</p>
           <div className={styles.flow}><span>Credit agreement</span><b aria-hidden>↓</b><span>ATS loan token</span><b aria-hidden>↓</b><span>Syndicate register</span><b aria-hidden>↓</b><span>Rate notice committed</span></div>
-          <p className={styles.scope}>The asset appears on the loan register the moment issuance completes.</p>
         </aside>
       </div> : record && <div className={styles.layout}>
         <section className={styles.panel}>

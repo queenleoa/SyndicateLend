@@ -27,7 +27,7 @@
 .footer { min-height:76px; display:flex; align-items:center; justify-content:space-between; gap:20px; }
 .contact { font-size:15px; font-weight:500; color:#445d73; text-decoration:none; }
 .contact:hover { color:#0a315a; text-decoration:underline; }
-.powered { display:flex; align-items:center; gap:12px; text-decoration:none; color:#3f5468; }
+.powered { display:flex; align-items:center; gap:12px; text-decoration:none; color:var(--ink-muted); }
 .powered span { font-size: 15px; font-weight:500; }
 .powered img { width:215px; height:56px; object-fit:cover; object-position:center; }
 @media(min-width:900px) and (max-height:800px) {

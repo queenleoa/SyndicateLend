@@ -95,9 +95,9 @@ export function Register() {
     {changes.length > 0 && <div className={s.update} role="status">Register updated: {changes.length} lender position{changes.length > 1 ? "s" : ""} changed on Hedera.</div>}
 
     <section className={s.totals} aria-label="Credit agreement totals">
-      <div><div className={s.totalLabel}><Image src="/integrations/hedera.svg" alt="Hedera" width={112} height={31} /><span>Principal on register</span></div><strong>{usd(totals.principal)}</strong><span>{totals.assets} assets · 1 token = $1 par · read live from ATS</span></div>
-      <div><div className={s.totalLabel}><span>Syndicate</span></div><strong>{totals.lenders} lenders</strong><span>Every holder of every asset, KYC-checked on-chain</span></div>
-      <div><div className={s.totalLabel}><Image src="/integrations/chainlink.svg" alt="Chainlink CRE" width={125} height={32} /><span>Interest released</span></div><strong>{released.length ? interest(releasedTotal.toString()) : "Pending"}</strong><span>{released.length ? `${released.length} of ${assets.length} assets calculated in the CRE enclave` : "Run the confidential calculation to release amounts"}</span></div>
+      <div><div className={s.totalLabel}><Image src="/integrations/hedera.svg" alt="Hedera" width={80} height={22} /><span>Principal on register</span></div><strong>{usd(totals.principal)}</strong></div>
+      <div><div className={s.totalLabel}><span>Syndicate</span></div><strong>{totals.lenders} lenders</strong></div>
+      <div><div className={s.totalLabel}><Image src="/integrations/chainlink.svg" alt="Chainlink CRE" width={88} height={22} /><span>Interest released</span></div><strong>{released.length ? interest(releasedTotal.toString()) : "Pending"}</strong></div>
     </section>
 
     <section className={s.assets} aria-label="Assets issued under the agreement">
@@ -144,7 +144,7 @@ export function Register() {
         </dl>
 
         <section className={s.cre} aria-label="Chainlink CRE interest">
-          <div className={s.creTitle}><h3>Interest accrual</h3><Image src="/integrations/chainlink.svg" alt="Chainlink CRE" width={112} height={29} /></div>
+          <div className={s.creTitle}><h3>Interest accrual</h3><Image src="/integrations/chainlink.svg" alt="Chainlink CRE" width={80} height={21} /></div>
           {asset.accrual ? <>
             <strong className={s.accrued}>{interest(asset.accrual.totalUnits)}</strong>
             <p>Period {asset.accrual.periodId} · {asset.accrual.days} days · mUSD</p>

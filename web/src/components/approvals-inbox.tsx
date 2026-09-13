@@ -15,7 +15,10 @@ export type InstitutionApprovalPayload = {
   institution: {
     id: string; name: string; cosigner?: "automated" | null; wallet: { id: string; address: string };
     keyQuorumId: string | null; policyId: string | null;
-    quorum: { threshold: number | null; userIds: string[] } | null;
+    /** `keys` counts the quorum's authorisation keys (co-signer, reserve); `userIds` its human members. */
+    quorum: { threshold: number | null; userIds: string[]; keys: number } | null;
+    /** Public half of the desk's reserve signer, when the quorum has one. */
+    reserveSigner?: string | null;
     members: { email: string; role: string; privyUserId?: string }[];
   } | null;
   me: { userId: string; role: string };
@@ -24,10 +27,10 @@ export type InstitutionApprovalPayload = {
   onboarding?: { ready: boolean; steps: { key: string; label: string; state: "done" | "active" | "pending"; detail?: string; needsDesk?: boolean; intentId?: string; canRetry?: boolean }[] };
   venue?: { engine?: string; loan?: string; usd?: string };
 };
-const ROLE: Record<string, string> = { trader: "Trader", compliance: "Compliance officer", pm: "Portfolio manager" };
-const OPEN = new Set(["pending", "granted", "processing"]);
+export const ROLE: Record<string, string> = { trader: "Trader", compliance: "Compliance officer", pm: "Portfolio manager" };
+export const OPEN = new Set(["pending", "granted", "processing"]);
 
-function description(intent: ApprovalIntent, data: InstitutionApprovalPayload) {
+export function describeIntent(intent: ApprovalIntent, data: InstitutionApprovalPayload) {
   const setup = approvalKind(intent.intent_id, data.setupIntents ?? {}) === "setup" ? data.setupIntents?.[intent.intent_id] : null;
   if (setup) return { title: setup, detail: "One-time wallet setup. The institution’s quorum must authorise this transaction." };
   const tx = intent.request_details?.body?.params?.transaction;
@@ -36,6 +39,51 @@ function description(intent: ApprovalIntent, data: InstitutionApprovalPayload) {
     return { title: `Approve settlement instruction #${tradeId}`, detail: "Authorise this institution’s side of the agreed trade. The counterparty approves separately." };
   }
   return { title: "Institutional transaction approval", detail: "Review the contract and transaction details before approving." };
+}
+
+/** One quorum signer as shown in the compact signature row. */
+export type SignerRow = { label: string; note: string; signed: boolean; kind: "you" | "member" | "cosigner" | "reserve" | "key" };
+
+/** Signers of an intent; without an intent, the institution's quorum as it will sign a future one. */
+export function signerRows(intent: ApprovalIntent | null, data: InstitutionApprovalPayload): SignerRow[] {
+  const inst = data.institution;
+  const me = barePrivyId(data.me.userId);
+  const reserve = (inst?.reserveSigner ?? "").replace(/\s+/g, "");
+  if (!intent) {
+    const rows: SignerRow[] = (inst?.members ?? []).map((m) => {
+      const isMe = barePrivyId(m.privyUserId) === me;
+      return { label: isMe ? "You" : ROLE[m.role] ?? m.role, note: "Signs in the browser", signed: false, kind: isMe ? "you" : "member" };
+    });
+    if (inst?.cosigner === "automated") rows.push({ label: "Compliance co-signer", note: "Co-signs after you", signed: false, kind: "cosigner" });
+    if (reserve) rows.push({ label: "Reserve key", note: "Standby", signed: false, kind: "reserve" });
+    return rows;
+  }
+  const members = new Map(inst?.members.map((m) => [barePrivyId(m.privyUserId), m]) ?? []);
+  let keyIndex = 0;
+  return (intent.authorization_details[0]?.members ?? []).map((m) => {
+    const signed = m.signed_at != null;
+    if (m.type === "user") {
+      const isMe = barePrivyId(m.user_id) === me;
+      const staff = members.get(barePrivyId(m.user_id));
+      return { label: isMe ? "You" : staff ? ROLE[staff.role] ?? staff.role : "Quorum member", note: signed ? "Signed" : "Awaiting signature", signed, kind: isMe ? "you" : "member" };
+    }
+    const key = (m.public_key ?? "").replace(/\s+/g, "");
+    const isReserve = Boolean(reserve) && (key === reserve || (!key && keyIndex === 1));
+    keyIndex++;
+    if (isReserve) return { label: "Reserve key", note: signed ? "Signed" : "Standby", signed, kind: "reserve" };
+    if (inst?.cosigner === "automated") return { label: "Compliance co-signer", note: signed ? "Signed" : "Co-signs after you", signed, kind: "cosigner" };
+    return { label: "Authorisation key", note: signed ? "Signed" : "Awaiting signature", signed, kind: "key" };
+  });
+}
+
+/** Compact, horizontal signature status: "1/2" followed by one dot per quorum signer. */
+export function SignerDots({ rows, threshold, muted }: { rows: SignerRow[]; threshold: number | null; muted?: boolean }) {
+  const signed = rows.filter((r) => r.signed).length;
+  const need = threshold ?? rows.length;
+  return <div className={`${styles.signerRow} ${muted ? styles.signerMuted : ""}`} aria-label={`${signed} of ${need} signatures`}>
+    <b>{signed}/{need}</b>
+    <ul className={styles.dots}>{rows.map((r, i) => <li key={i} className={r.signed ? styles.dotOn : signed > 0 && r.kind === "cosigner" ? styles.dotNext : ""} title={r.note}>{r.label}</li>)}</ul>
+  </div>;
 }
 
 export function useApprovalInbox() {
@@ -123,6 +171,12 @@ export function useApprovalInbox() {
   return { data, error, notice, busy, refresh, act, syncApproved, retrySetup };
 }
 
+/** Contract, network and timing of an intent's transaction, folded away by default. */
+export function IntentDetails({ intent }: { intent: ApprovalIntent }) {
+  const tx = intent.request_details?.body?.params?.transaction;
+  return <details className={styles.intentDetails}><summary>Transaction details</summary><dl className={styles.metadata}><div><dt>Contract</dt><dd>{tx?.to ? <a href={`${HASHSCAN}/contract/${tx.to}`} target="_blank" rel="noreferrer">{short(tx.to, 8, 6)} ↗</a> : "Unavailable"}</dd></div><div><dt>Network</dt><dd>Hedera {tx?.chain_id === 296 ? "testnet" : `chain ${tx?.chain_id ?? "unknown"}`}</dd></div><div><dt>Created</dt><dd>{when(intent.created_at)}</dd></div><div><dt>Expires</dt><dd>{when(intent.expires_at)}</dd></div><div><dt>Method selector</dt><dd>{tx?.data?.slice(0, 10) ?? "Unavailable"}</dd></div></dl></details>;
+}
+
 export function ApprovalList({ inbox, kind }: { inbox: ReturnType<typeof useApprovalInbox>; kind: ApprovalKind }) {
   const [showHistory, setShowHistory] = useState(false);
   const { data, busy, act } = inbox;
@@ -131,36 +185,30 @@ export function ApprovalList({ inbox, kind }: { inbox: ReturnType<typeof useAppr
   const open = filtered.filter((i) => !i.superseded && OPEN.has(i.status));
   const closed = filtered.filter((i) => i.superseded || !OPEN.has(i.status));
   const actionable = open.filter((i) => canApprove(i, data.me.userId));
-  const members = new Map(data.institution?.members.map((m) => [barePrivyId(m.privyUserId), m]));
   return <section id={kind === "setup" ? "setup-approvals" : "trade-approvals"} className={styles.inbox}>
     <div className={styles.sectionHeader}>
       <div><h2>{kind === "setup" ? "Wallet setup approvals" : "Trade approvals"} <span className={styles.count}>{actionable.length}</span></h2><p>{actionable.length ? "Waiting for your signature" : open.length ? "Waiting for other signers or execution" : "No approvals waiting"}</p></div>
       {kind === "setup" && actionable.length > 1 && <button className={styles.primary} disabled={busy !== null} onClick={() => void act(actionable.map((i) => i.intent_id), "authorize")}>{busy === "setup-batch" ? "Signing with Privy…" : <>Sign all {actionable.length} with <PrivyMark height={20} /></>}</button>}
     </div>
-    {data.institution?.cosigner === "automated" && open.length > 0 && <p className={styles.cosignerNote}>Your signature is enough: the venue’s automated compliance co-signer completes the 2-of-2 quorum right after you approve.</p>}
+    {data.institution?.cosigner === "automated" && open.length > 0 && <p className={styles.cosignerNote}>Your signature is enough: the venue’s automated compliance co-signer completes the quorum right after you approve.</p>}
     {open.length === 0 ? <div className={styles.empty}>{kind === "setup" ? "One-time wallet permissions appear here when they are ready. The agent bank is preparing them; this page refreshes by itself." : "When your institution accepts a trade and the agent grants consent, the settlement instruction appears here."}</div> : <div className={styles.intentList}>
       {open.map((intent) => {
-        const desc = description(intent, data);
+        const desc = describeIntent(intent, data);
         const quorum = intent.authorization_details[0];
-        const signed = quorum?.members.filter((m) => m.signed_at != null).length ?? 0;
         const mine = hasSigned(intent, data.me.userId);
         const actionable = canApprove(intent, data.me.userId);
-        const tx = intent.request_details?.body?.params?.transaction;
         return <article key={intent.intent_id} id={`intent-${intent.intent_id}`} className={styles.intent}>
-          <div className={styles.intentTop}><span className={styles.status}>{intent.status}</span><strong>{signed} / {quorum?.threshold ?? "—"} signatures</strong></div>
-          <div className={styles.intentHeading}><h3>{desc.title}</h3><div className={styles.buttons}>{["compliance", "pm"].includes(data.me.role) && intent.status === "pending" && <button className={styles.reject} disabled={busy !== null} onClick={() => void act([intent.intent_id], "reject")}>Reject</button>}<button className={styles.primary} disabled={busy !== null || !actionable} onClick={() => void act([intent.intent_id], "authorize")}>{busy === intent.intent_id ? "Signing with Privy…" : mine ? "Your approval recorded" : actionable ? <>Approve with <PrivyMark height={20} /></> : "Awaiting execution / quorum"}</button></div></div><p>{desc.detail}</p>
-          <div className={styles.signers}>{quorum?.members.map((member, index) => {
-            const staff = members.get(barePrivyId(member.user_id));
-            const label = staff ? ROLE[staff.role] ?? staff.role : member.type === "user" ? "Quorum member" : data.institution?.cosigner === "automated" ? "Automated compliance co-signer" : "Authorisation key";
-            return <span key={index} className={member.signed_at != null ? styles.signed : styles.waiting}>{label}<b>{member.signed_at != null ? "Signed" : member.type === "user" ? "Awaiting signature" : "Co-signs after you"}</b></span>;
-          })}</div>
-          <div className={styles.intentActions}>
-            <details><summary>Transaction details</summary><dl className={styles.metadata}><div><dt>Contract</dt><dd>{tx?.to ? <a href={`${HASHSCAN}/contract/${tx.to}`} target="_blank" rel="noreferrer">{short(tx.to, 8, 6)} ↗</a> : "Unavailable"}</dd></div><div><dt>Network</dt><dd>Hedera {tx?.chain_id === 296 ? "testnet" : `chain ${tx?.chain_id ?? "unknown"}`}</dd></div><div><dt>Created</dt><dd>{when(intent.created_at)}</dd></div><div><dt>Expires</dt><dd>{when(intent.expires_at)}</dd></div><div><dt>Method selector</dt><dd>{tx?.data?.slice(0, 10) ?? "Unavailable"}</dd></div></dl></details>
+          <div className={styles.intentMain}>
+            <div className={styles.intentTop}><span className={styles.status}>{intent.status}</span><h3>{desc.title}</h3></div>
+            <p>{desc.detail}</p>
+            <SignerDots rows={signerRows(intent, data)} threshold={quorum?.threshold ?? null} />
+            <IntentDetails intent={intent} />
           </div>
+          <div className={styles.intentSide}>{["compliance", "pm"].includes(data.me.role) && intent.status === "pending" && <button className={styles.reject} disabled={busy !== null} onClick={() => void act([intent.intent_id], "reject")}>Reject</button>}<button className={styles.primary} disabled={busy !== null || !actionable} onClick={() => void act([intent.intent_id], "authorize")}>{busy === intent.intent_id ? "Signing with Privy…" : mine ? "Your approval recorded" : actionable ? <>Approve with <PrivyMark height={20} /></> : "Awaiting execution / quorum"}</button></div>
         </article>;
       })}
     </div>}
-    {closed.length > 0 && <div className={styles.history}><button className={styles.textButton} onClick={() => setShowHistory(!showHistory)}>{showHistory ? "Hide" : "Show"} {closed.length} completed or closed actions</button>{showHistory && <ul>{closed.map((intent) => <li key={intent.intent_id}><span>{description(intent, data).title}</span><b>{intent.superseded ? "Superseded" : intent.status}</b><time>{when(intent.created_at)}</time></li>)}</ul>}</div>}
+    {closed.length > 0 && <div className={styles.history}><button className={styles.textButton} onClick={() => setShowHistory(!showHistory)}>{showHistory ? "Hide" : "Show"} {closed.length} completed or closed actions</button>{showHistory && <ul>{closed.map((intent) => <li key={intent.intent_id}><span>{describeIntent(intent, data).title}</span><b>{intent.superseded ? "Superseded" : intent.status}</b><time>{when(intent.created_at)}</time></li>)}</ul>}</div>}
   </section>;
 }
 
