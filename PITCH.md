@@ -12,9 +12,9 @@ Syndicated loans are one of the largest credit markets in the world: the Morning
 
 SyndicateLend puts ownership, eligibility, payment and evidence in one workflow:
 
-1. **Register**: one Asset Tokenization Studio security per tranche. Eligible lenders only; a transfer to an unverified account reverts.
+1. **Register**: one credit agreement, one Asset Tokenization Studio security per facility or tranche, issued from the ops scripts or from the browser wizard. Eligible lenders only; a transfer to an unverified account reverts.
 2. **Market**: the RFQ workflow desks already use, with every event ordered on a Hedera Consensus Service topic.
-3. **Institutional approval**: Privy quorum wallets. A trader cannot move the desk's assets alone; two of three named members must sign.
+3. **Institutional approval**: Privy quorum wallets. A trader cannot move the desk's assets alone; two of three quorum members must sign (named staff for the institutions in the video; trader, automated compliance co-signer and a reserve key for a self-service judge desk).
 4. **Settlement**: `SettlementEngine` exchanges the loan token and mock USD atomically, scheduled by the Hedera Schedule Service from inside the contract. A buyer whose eligibility is revoked before execution causes a full revert with the reason on-chain.
 5. **Interest**: the agent commits a salted hash of its private rate notice to HCS; a Chainlink CRE confidential workflow verifies the notice in a TEE, computes each holder's accrual, and releases only the distribution, which the paying agent settles in one HTS transfer.
 

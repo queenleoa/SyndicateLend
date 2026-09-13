@@ -189,7 +189,7 @@ Five things in this build are, to my knowledge, not found together on Hedera or 
 1. **In-contract scheduling with the contract as payer.** `SettlementEngine` calls the Hedera Schedule Service system contract (HIP-1215 `scheduleCall`) itself when the second approval lands, and funds the scheduled execution from its own balance. No off-chain scheduler or keeper.
 2. **Revocation triggers a full revert at execution time.** The compliance officer can revoke a buyer after both desks have approved; the scheduled settlement then fails as a whole, with the ATS revert reason stored on the trade. The engine uses `transferFrom` rather than ATS `forcedTransfer` precisely so that this check cannot be bypassed.
 3. **Commitment-verified confidential accrual.** The agent commits a salted hash of the private rate notice to HCS; a Chainlink CRE confidential workflow verifies the notice inside a TEE and releases only the per-holder distribution. A tampered notice aborts before any output leaves the enclave.
-4. **User-bound institutional quorum.** Each desk wallet is owned by a Privy key quorum of three named staff with a 2-of-3 policy limited to the venue contracts. The application secret alone cannot move a desk's assets.
+4. **User-bound institutional quorum.** Each desk wallet is owned by a Privy key quorum with a 2-of-3 policy limited to the venue contracts: three named staff for a named institution, or the trader, the venue's automated compliance co-signer and a per-desk reserve key for a self-service judge desk (the venue holds one key of three). The application secret alone cannot move a desk's assets.
 5. **The market's own workflow.** RFQ rather than an order book, an agent-centred register rather than a fund wrapper, and settlement receipts that map to the LSTA trade lifecycle desks already run.
 6. **Integration hooks into the agent's existing systems.** A reconciliation adapter ingests the agent's own register export (the shape a Loan IQ book or a Versana feed produces), marks each lender AGREES or BREAK against the ATS register, computes the agreement rate and attests only a hash of the report on HCS; an assignment exporter turns settled trades into LSTA-vocabulary records for the agent's loan system or a ClearPar-style workflow. The shadow-register pilot therefore requires no re-keying on either side.
 
@@ -304,7 +304,7 @@ For the hackathon, the workflow must prove that a changed notice fails verificat
 | FR-10 | P0 | Commit a private interest notice to HCS | HCS stores the hash, facility and period, not the notice |
 | FR-11 | P0 | Verify and calculate accrual in a CRE confidential workflow | Correct input produces output; altered input aborts |
 | FR-12 | P0 | Distribute interest in mock USD | Every holder receives the amount calculated from the snapshot |
-| FR-13 | P0 | Provide a blotter, portfolio, register and approval inbox | A new judge can complete the guided flow without a CLI |
+| FR-13 | P0 | Provide institution wallet setup, a blotter, portfolio, multi-asset register, transfer requests, interest and payments, and approvals | A new judge can complete the guided flow without a CLI |
 | FR-14 | P0 | Link material transactions to HashScan | Issue, RFQ, schedule and settlement receipts are inspectable |
 | FR-15 | P1 | Demonstrate freeze and pause controls | Default freeze and amendment pause block the expected actions |
 | FR-16 | P1 | Encrypt RFQ payloads | Authorised participants can read them; public observers cannot |
@@ -344,13 +344,14 @@ flowchart TB
     subgraph UX[Institutional web application]
         B[RFQ blotter]
         P[Portfolio and register]
-        A[Approval inbox]
+        A[Institution: wallet setup and approvals]
+        I[Issuance wizard and multi-asset register]
     end
 
     subgraph CONTROL[Identity and control]
         PRIVY[Privy authentication, wallets and quorum policy]
         AGENT[Administrative-agent service]
-        RELAY[CRE report relayer]
+        PAY[Paying-agent payout script]
     end
 
     subgraph HEDERA[Hedera testnet]
@@ -359,7 +360,7 @@ flowchart TB
         USD[HTS mock USD]
         HCS[HCS RFQ and commitment topics]
         SCHEDULE[Scheduled Transactions]
-        DIST[InterestDistributor]
+        DIST[Batched HTS interest payout]
         MIRROR[Mirror node]
     end
 
@@ -379,8 +380,10 @@ flowchart TB
     HCS --> MIRROR
     MIRROR --> CRE
     NOTICE --> CRE
-    CRE --> RELAY
-    RELAY --> DIST
+    CRE --> PAY
+    PAY --> DIST
+    I --> ATS
+    I --> HCS
     DIST --> USD
     MIRROR --> B
     MIRROR --> P
@@ -398,7 +401,8 @@ flowchart TB
 | Mirror node | Serve read models for the UI and CRE verification | Keeps high-volume reads away from consensus transactions |
 | Privy | Authenticate users and enforce wallet-action quorum | Models the separation between trader, compliance and portfolio authority |
 | Chainlink CRE | Verify committed confidential inputs and calculate accrual in a TEE | Keeps private terms outside the public ledger and application server |
-| Relayer | Deliver CRE output to Hedera where a native CRE write path is unavailable | Limits the trusted role to delivery; evidence remains verifiable |
+| Paying agent (`ops/src/pay-interest.ts`) | Verify the released distribution against the HCS commitment and pay it in atomic HTS batches, with catch-up for holders skipped earlier | The disclosed fallback for an on-chain distributor; the trusted role is limited to delivery and every payout is receipted on HCS |
+| Market tick (`web/src/lib/automated-desk.ts`) | After any API response: onboarding steps, gas float, automated signatures and co-signatures, broadcasts, settlement sync, market making | No long-lived process is needed on the hosted demo |
 
 ### 6.3 Trade state model
 
@@ -421,8 +425,9 @@ The contract must reject invalid transitions, repeated settlement, changed econo
 
 | Record | Minimum fields |
 |---|---|
-| Facility | facility ID, tranche, currency, token address, agent, status, document hash/reference |
-| Institution | institution ID, Hedera/EVM account, KYC status, eligibility status |
+| Credit agreement | name, borrower, agent bank, dated, document reference, governing law |
+| Asset (one ATS security per facility or tranche) | symbol, name, synthetic ISIN, token address and id, principal, maturity, facility type, document reference, creation receipt, source (ops scripts or browser issuance), tradeable flag, allocations |
+| Institution | institution ID, members and roles, Privy key quorum, policy, desk wallet, reserve-signer public key (judge desks), Hedera account, onboarding step receipts, gas top-ups, KYC and eligibility status |
 | RFQ | RFQ ID, facility, side, par amount, response deadline, creator |
 | Quote | quote ID, RFQ ID, counterparty, price, settlement date, expiry |
 | Trade | trade ID, accepted quote hash, buyer, seller, par, cash amount, state, schedule ID |
@@ -502,7 +507,7 @@ The prototype demonstrates a technical register; it does not establish that poss
 | Privy to Hedera | Privy EVM wallet calls contracts through Hedera JSON-RPC | Use Privy for policy-bound EVM approval only; keep native administrative transactions in the backend demo account |
 | Deferred settlement | Hedera `ScheduleCreateTransaction` wrapping `ContractExecuteTransaction` with `waitForExpiry` | Execute the same contract call manually at the chosen demo time and label scheduling incomplete |
 | CRE delivery | Relayer submits verifiable CRE output to `InterestDistributor` | Store and display the simulated signed/attested output, then submit through an authorised demo adapter |
-| Interest payout | Contract-mediated HTS distribution to the small demo holder set | Use ATS Mass Payout or batched Hedera SDK transfers if contract limits block the path |
+| Interest payout | Contract-mediated HTS distribution to the small demo holder set | Batched Hedera SDK transfers signed by the paying agent (the path taken), with catch-up runs for holders skipped earlier |
 
 Fallbacks must be disclosed in the README and demo. A simulated or adapted path must never be presented as a production integration.
 
@@ -532,21 +537,23 @@ The MVP is complete only when a judge can:
 | Privy B2B workflow | Role-based 2-of-3 approval before an institutional wallet action |
 | Product execution | A browser-based, end-to-end flow with positive and negative test cases and inspectable receipts |
 
-### 8.5 Status at submission (2026-09-12)
+### 8.5 Status at submission (updated 2026-09-13)
 
 | Requirement | Status | Evidence |
 |---|---|---|
 | FR-01 to FR-04, FR-06 to FR-09 | Done on testnet | README "Live on Hedera testnet" and "Settlement evidence" |
-| FR-05 Privy 2-of-3 | Done | Provisioned quorums and policies; one signature is insufficient in the app |
+| FR-05 Privy 2-of-3 | Done | Provisioned quorums and policies; one signature is insufficient in the app. Self-service judge desks are a genuine 2-of-3 of trader, automated compliance co-signer and a per-desk reserve key |
 | FR-10, FR-11 | Done in the local CRE simulator | `cre/evidence/latest.json`; live enclave deployment needs Confidential Workflows private beta, enrolment requested |
-| FR-12 Interest payout | Done via the disclosed fallback | Paying agent pays the CRE-released distribution in atomic HTS batches; periods 2 and 3 paid on testnet; README "Interest payout" |
-| FR-13, FR-14 | Done | Web app pages and HashScan receipts |
+| FR-12 Interest payout | Done via the disclosed fallback | Paying agent pays the CRE-released distribution in atomic HTS batches per asset, with `--catch-up` for holders skipped earlier; periods 2 and 3 paid on Tranche A and period 1 on the other assets; README "Interest payout" |
+| FR-13, FR-14 | Done | Institution (wallet setup as three phases, approvals), Loan registry (issue, register, transfer requests, interest & payments, administration), Secondary exchange, Positions; HashScan receipts throughout |
+| Multi-asset register and browser issuance (§4.1) | Done on testnet | One credit agreement with `MHTLB-A`, `MH-RCF`, `MH-DDTL` from the ops scripts plus tranches issued from the wizard (`MHTLB-B`, `MHTLB-C`); lender pars read through `RegisterSnapshot`; docs/issuance-guide.md |
+| Self-service judge desks and automated institutions | Done | Any email gets its own institution; Aldgate market-makes and Bishopsgate counterparties the transfer-request demo; docs/demo-runbook.md |
 | FR-15 Freeze and pause | Done | `npm run demo:controls`; README "Lifecycle controls" |
 | FR-16 Encrypted RFQ payloads | Not done | RFQ messages are synthetic plain text on the public topic |
 | Shadow-register integration (§10.3) | Done | Register reconciliation with HCS attestation and LSTA-style assignment export; README "Integration hooks" |
 | Retail feeder holders on public network (§9.5) | Done on testnet | 25 holders onboarded as KYC-gated register positions in 150 transactions; paid in period 3 in four atomic batches; README "Retail feeder holders on public testnet" |
 
-Two of the five holders in the period-2 snapshot are Privy desk wallets whose mock-USD association intent has not yet been executed by their quorum; the payout script skips them with the reason recorded on the HCS receipt. This is a demo-provisioning gap, not a design limitation.
+One Privy desk wallet (Halcyon) has not yet executed its mock-USD association intent, so the payout script skips it with the reason recorded on the HCS receipt until its quorum signs; a catch-up payout then pays it. Meridian's earlier skip is settled the same way. This is a demo-provisioning gap, not a design limitation. Desk wallets on testnet are kept above 8 HBAR by the operator so their Privy-signed transactions can reserve gas.
 
 ---
 

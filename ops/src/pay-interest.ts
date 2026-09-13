@@ -13,7 +13,10 @@
  * This is the disclosed fallback path from the PRD (batched HTS transfers signed by the paying agent) rather
  * than an on-chain InterestDistributor consuming a DON-signed report.
  *
- *   npm run pay-interest -- [--file <distribution.json>] [--dry-run] [--force]
+ *   npm run pay-interest -- [--facility MH-RCF] [--file <distribution.json>] [--dry-run] [--force] [--catch-up]
+ *
+ * --catch-up pays only the holders that an earlier payout of the same period skipped (for example a desk whose
+ * quorum had not yet signed its mock-USD association) and merges them into that payout's evidence.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -37,9 +40,13 @@ interface Released {
 const here = path.dirname(fileURLToPath(import.meta.url));
 const evidenceDir = path.resolve(here, "../../cre/evidence");
 const fileArg = process.argv.indexOf("--file");
-const file = fileArg > 0 ? path.resolve(process.argv[fileArg + 1]) : path.join(evidenceDir, "distribution.json");
+const facilityArg = process.argv.indexOf("--facility");
+const facility = facilityArg > 0 ? process.argv[facilityArg + 1].toUpperCase() : null;
+// Per-asset evidence lives in distributions/<SYMBOL>.json; the first tranche keeps the legacy single files.
+const file = fileArg > 0 ? path.resolve(process.argv[fileArg + 1]) : facility ? path.join(evidenceDir, "distributions", `${facility}.json`) : path.join(evidenceDir, "distribution.json");
 const dryRun = process.argv.includes("--dry-run");
 const force = process.argv.includes("--force");
+const catchUp = process.argv.includes("--catch-up");
 
 if (!fs.existsSync(file)) throw new Error(`no released distribution at ${file}; run \`npm run demo:cre\` first`);
 const released = JSON.parse(fs.readFileSync(file, "utf8")) as Released;
@@ -48,8 +55,12 @@ if (!dep.mockUsd || !dep.topics?.notices) throw new Error("deploy mock USD and t
 const usd = TokenId.fromString(dep.mockUsd.tokenId);
 const topic = dep.topics.notices;
 
-const prior = ((dep.interestPayouts as { commitment: string }[] | undefined) ?? []).find((p) => p.commitment.toLowerCase() === released.commitment.toLowerCase());
-if (prior && !force) throw new Error(`period ${released.periodId} (commitment ${released.commitment}) was already paid; pass --force to pay again`);
+type PriorPayout = { commitment: string; paid: { holder: string; accountId: string; amountUnits: string }[]; skipped: { holder: string; reason: string }[]; batches?: { transactionId: string; hashscan: string; holders: number; units: string }[]; transactionId: string; hashscan: string; hcs?: { sequence: number; transactionId: string } };
+const priors = ((dep.interestPayouts as PriorPayout[] | undefined) ?? []).filter((p) => p.commitment.toLowerCase() === released.commitment.toLowerCase());
+const prior = priors[priors.length - 1];
+if (prior && !force && !catchUp) throw new Error(`period ${released.periodId} (commitment ${released.commitment}) was already paid; pass --catch-up to pay only the holders it skipped, or --force to pay everyone again`);
+const alreadyPaid = new Set(catchUp ? priors.flatMap((p) => p.paid.map((x) => x.holder.toLowerCase())) : []);
+if (catchUp && !prior) console.log("no earlier payout for this period; --catch-up pays every ready holder");
 
 // 1. The distribution must correspond to a commitment the agent actually published.
 type MirrorMsg = { sequence_number: number; message: string; chunk_info?: { initial_transaction_id: unknown; number: number; total: number } | null };
@@ -82,6 +93,7 @@ const paid: { holder: string; accountId: string; amountUnits: string }[] = [];
 const skipped: { holder: string; reason: string }[] = [];
 for (const d of released.distribution) {
   const holder = d.holder.toLowerCase();
+  if (alreadyPaid.has(holder)) continue; // paid by the earlier payout of this period
   if (BigInt(d.amountUnits) === 0n) { skipped.push({ holder, reason: "no par in the register snapshot" }); continue; }
   const acct = await fetch(`${process.env.HEDERA_MIRROR_URL ?? "https://testnet.mirrornode.hedera.com"}/api/v1/accounts/${holder}`);
   if (acct.status === 404) { skipped.push({ holder, reason: "no Hedera account yet" }); continue; }
@@ -94,10 +106,10 @@ for (const d of released.distribution) {
   paid.push({ holder, accountId, amountUnits: d.amountUnits });
 }
 const total = paid.reduce((a, p) => a + BigInt(p.amountUnits), 0n);
-console.log(`payable now: ${paid.length} holders, ${fmt(total)} mUSD; skipped: ${skipped.length}`);
+console.log(`payable now: ${paid.length} holders, ${fmt(total)} mUSD; skipped: ${skipped.length}${alreadyPaid.size ? `; already paid earlier: ${alreadyPaid.size}` : ""}`);
 for (const p of paid) console.log(`  + ${p.holder} (${p.accountId}) ${fmt(BigInt(p.amountUnits))} mUSD`);
 for (const s of skipped) console.log(`  - ${s.holder}: ${s.reason}`);
-if (paid.length === 0) throw new Error("nothing payable");
+if (paid.length === 0) { console.log(catchUp ? "nothing new to pay: every remaining holder is still skipped (see reasons above)" : "nothing payable"); process.exit(catchUp ? 0 : 1); }
 if (dryRun) { console.log("dry run: no transaction sent"); process.exit(0); }
 
 const client = hederaClient();
@@ -135,14 +147,21 @@ const pubRc = await pub.getReceipt(client);
 const hcs = { sequence: pubRc.topicSequenceNumber?.toNumber() ?? 0, transactionId: pub.transactionId.toString() };
 console.log(`payout receipt published: HCS #${hcs.sequence} ${HASHSCAN}/topic/${topic}`);
 
-const evidence = { ranAt: Date.now(), facilityId: released.facilityId, periodId: released.periodId, commitment: released.commitment, mintTransactionId: mint.transactionId.toString(), transactionId, hashscan: hashscanTx, batches, totalPaidUnits: total.toString(), paid, skipped, hcs };
-fs.mkdirSync(evidenceDir, { recursive: true });
-fs.writeFileSync(path.join(evidenceDir, "payout.json"), JSON.stringify(evidence, null, 2) + "\n");
+// A catch-up merges into the earlier payout's evidence so the register sees one complete payout per period.
+const merged = catchUp && prior ? {
+  paid: [...priors.flatMap((p) => p.paid), ...paid],
+  batches: [...priors.flatMap((p) => p.batches ?? [{ transactionId: p.transactionId, hashscan: p.hashscan, holders: p.paid.length, units: p.paid.reduce((a, x) => a + BigInt(x.amountUnits), 0n).toString() }]), ...batches],
+  transactionId: prior.transactionId, hashscan: prior.hashscan,
+} : { paid, batches, transactionId, hashscan: hashscanTx };
+const evidence = { ranAt: Date.now(), facilityId: released.facilityId, periodId: released.periodId, commitment: released.commitment, mintTransactionId: mint.transactionId.toString(), transactionId: merged.transactionId, hashscan: merged.hashscan, batches: merged.batches, totalPaidUnits: merged.paid.reduce((a, p) => a + BigInt(p.amountUnits), 0n).toString(), paid: merged.paid, skipped, hcs, ...(catchUp && prior ? { catchUpOf: prior.transactionId } : {}) };
+fs.mkdirSync(path.join(evidenceDir, "payouts"), { recursive: true });
+fs.writeFileSync(path.join(evidenceDir, "payouts", `${released.facilityId}.json`), JSON.stringify(evidence, null, 2) + "\n");
+if (!facility || facility === (dep.loanToken as { symbol?: string } | undefined)?.symbol) fs.writeFileSync(path.join(evidenceDir, "payout.json"), JSON.stringify(evidence, null, 2) + "\n");
 writeDeployments((d) => {
   const list = ((d.interestPayouts as unknown[]) ??= []) as typeof evidence[];
   list.push(evidence);
 });
-console.log(`evidence written to cre/evidence/payout.json and ops/deployments/${dep.network}.json`);
+console.log(`evidence written to cre/evidence/payouts/${released.facilityId}.json and ops/deployments/${dep.network}.json`);
 process.exit(0);
 
 function safeJson(s: string): any {

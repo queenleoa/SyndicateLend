@@ -1,0 +1,163 @@
+{
+  "ranAt": 1789289995755,
+  "facilityId": "MH-RCF",
+  "periodId": 1,
+  "commitment": "0x933feb0c4b8bdb4d3d2a4b0dcfc3e88ac13da9556fdcaa55e4192a67a2a35d23",
+  "mintTransactionId": "0.0.10457020@1789289981.457967098",
+  "transactionId": "0.0.10457020@1789289984.015911851",
+  "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789289984-015911851",
+  "batches": [
+    {
+      "transactionId": "0.0.10457020@1789289984.015911851",
+      "hashscan": "https://hashscan.io/testnet/transaction/0.0.10457020-1789289984-015911851",
+      "holders": 5,
+      "units": "337500000000"
+    }
+  ],
+  "totalPaidUnits": "337500000000",
+  "paid": [
+    {
+      "holder": "0xa6be8bbdc1175538349e745ff7ab4a0f9d5cb2fb",
+      "accountId": "0.0.10477813",
+      "amountUnits": "28125000000"
+    },
+    {
+      "holder": "0xa481050626583a955d46001ff10121e80c0118d5",
+      "accountId": "0.0.10507254",
+      "amountUnits": "39375000000"
+    },
+    {
+      "holder": "0xe4691b01dfbb6c3022c9c1b82521999bf9c2797e",
+      "accountId": "0.0.10459771",
+      "amountUnits": "118125000000"
+    },
+    {
+      "holder": "0x8ce724550b8608d6ade9d05f903f0657fc9f46c5",
+      "accountId": "0.0.10459773",
+      "amountUnits": "84375000000"
+    },
+    {
+      "holder": "0x2f513e82c82de59700a731a44c37835009b95391",
+      "accountId": "0.0.10459776",
+      "amountUnits": "67500000000"
+    }
+  ],
+  "skipped": [
+    {
+      "holder": "0x9c2e3a418d90d9c6fd7f3c417ec5730a3e65498b",
+      "reason": "no par in the register snapshot"
+    },
+    {
+      "holder": "0x874fd6407a9ad938b079ee9162443fb37590aa6b",
+      "reason": "no par in the register snapshot"
+    },
+    {
+      "holder": "0x5214634081368e28ebde02f772310bcf29b37349",
+      "reason": "no par in the register snapshot"
+    },
+    {
+      "holder": "0xdc0a4eb1d87e868ce03ccdc9896d67c5c628dffa",
+      "reason": "no par in the register snapshot"
+    },
+    {
+      "holder": "0x099319a3c0a5aba535010d349fbbfc39f1681802",
+      "reason": "no par in the register snapshot"
+    },
+    {
+      "holder": "0x250106a60a6fe3639e0b040c0f6639a4e91afdcd",
+      "reason": "no par in the register snapshot"
+    },
+    {
+      "holder": "0x1a0c804a1503eb0ad5760d16b3b0addea3530aa3",
+      "reason": "no par in the register snapshot"
+    },
+    {
+      "holder": "0x995a5d6bb9cfb9447469b93d69e5e0845657b037",
+      "reason": "no par in the register snapshot"
+    },
+    {
+      "holder": "0x5d8a77a2d05e5ce2719b4923bec477741aa761ae",
+      "reason": "no par in the register snapshot"
+    },
+    {
+      "holder": "0x147317dbd2a51ad8b3b5b56a118f08585abd21bb",
+      "reason": "no par in the register snapshot"
+    },
+    {
+      "holder": "0x874184d4983511efc4162ce5810b6998db1f4e14",
+      "reason": "no par in the register snapshot"
+    },
+    {
+      "holder": "0x7c4009d01a89ecaa69935303d13363515e0e8f53",
+      "reason": "no par in the register snapshot"
+    },
+    {
+      "holder": "0x61c74a9431130a30d9cba411de0f822dea601021",
+      "reason": "no par in the register snapshot"
+    },
+    {
+      "holder": "0xbe534b033ed5de0f5b1ecca7fb6f3ef7eb0f0a91",
+      "reason": "no par in the register snapshot"
+    },
+    {
+      "holder": "0xe3610584e8a6b7d09758a01a3e434ef2d3866557",
+      "reason": "no par in the register snapshot"
+    },
+    {
+      "holder": "0xa486e6a3a21763c0c223979fa2d3daf80302a201",
+      "reason": "no par in the register snapshot"
+    },
+    {
+      "holder": "0x55137d98dca4472df28e3a91f9f1283afec9203c",
+      "reason": "no par in the register snapshot"
+    },
+    {
+      "holder": "0xbb36336c42a3cdaee0996987b5fb0575d75b4c77",
+      "reason": "no par in the register snapshot"
+    },
+    {
+      "holder": "0x0ca9f7d696238c34c78b797e269b2237083ec96f",
+      "reason": "no par in the register snapshot"
+    },
+    {
+      "holder": "0xe50c3f493349f9653ea4397e3d084502e9212282",
+      "reason": "no par in the register snapshot"
+    },
+    {
+      "holder": "0x998ba26755385c8a4dfe8acbe814875794e44129",
+      "reason": "no par in the register snapshot"
+    },
+    {
+      "holder": "0x20416989d3a5441aab5b2e0f5d020e680e561cd9",
+      "reason": "no par in the register snapshot"
+    },
+    {
+      "holder": "0x1a9f603ce943b926f2496402c3f98d69d4011095",
+      "reason": "no par in the register snapshot"
+    },
+    {
+      "holder": "0x554169fbd8f9a1e2b2b52d2c89f205c5b3cd8f63",
+      "reason": "no par in the register snapshot"
+    },
+    {
+      "holder": "0x6f30cb48d59d7b9abb0b58d3447a128f3fd8491a",
+      "reason": "no par in the register snapshot"
+    },
+    {
+      "holder": "0xe60c34b30b38a23a7e5fc6f24fc2514fac0ee35d",
+      "reason": "no par in the register snapshot"
+    },
+    {
+      "holder": "0x5a7e59056af74ae6631f9280b4b7a01b00f327ff",
+      "reason": "no par in the register snapshot"
+    },
+    {
+      "holder": "0xa1b9ac6d594661366e5d37473911ab01d6c4be4f",
+      "reason": "no par in the register snapshot"
+    }
+  ],
+  "hcs": {
+    "sequence": 15,
+    "transactionId": "0.0.10457020@1789289986.690536335"
+  }
+}

@@ -34,6 +34,8 @@ export interface HederaOnboarding {
   intentHistory?: { intentId: string; step: "usdAssociate" | "allowLoan" | "allowUsd" }[];
   accountId?: string;
   fundTx?: string;
+  /** Most recent operator HBAR top-up so the wallet can cover gas reservations. */
+  lastGasTopUp?: { txHash: string; at: number };
   eligibilityTx?: string;
   allocateTx?: string;
   allocatedPar?: string;
@@ -99,6 +101,22 @@ export async function fund(id: string, hbar = "25") {
     h.accountId = accountId ?? undefined;
   });
   return { txHash: tx.hash, accountId };
+}
+
+/**
+ * Gas float for a desk wallet. A Privy-signed approval reserves gasLimit × maxFee (about 6 HBAR at the
+ * relay's current price) before execution, so a wallet under that reservation is rejected by the relay
+ * with "Insufficient funds" even though the call itself costs a fraction. Top the wallet up from the
+ * operator when it drops under `minHbar`. Returns the transfer hash, or null when nothing was needed.
+ */
+export async function topUpGas(id: string, minHbar = 8, sendHbar = "20"): Promise<string | null> {
+  const i = inst(id);
+  const balance = await new JsonRpcProvider(HEDERA_RPC, undefined, { staticNetwork: true }).getBalance(i.wallet!.address);
+  if (balance >= parseEther(String(minHbar))) return null;
+  const tx = await operator().sendTransaction({ to: i.wallet!.address, value: parseEther(sendHbar) });
+  await tx.wait();
+  save(id, (h) => { h.lastGasTopUp = { txHash: tx.hash, at: Date.now() }; });
+  return tx.hash;
 }
 
 export async function eligibility(id: string, grant = true) {

@@ -23,7 +23,10 @@
     "freeze-demo": "tsx src/freeze-demo.ts",
     "reconcile": "tsx src/reconcile-register.ts",
     "export-assignments": "tsx src/export-assignments.ts",
-    "feeder": "tsx src/feeder-demo.ts"
+    "feeder": "tsx src/feeder-demo.ts",
+    "raise-cap": "tsx src/raise-cap.ts",
+    "issue-tranche": "tsx src/issue-tranche.ts",
+    "allocate-asset": "tsx src/allocate-asset.ts"
   },
   "dependencies": {
     "@hashgraph/asset-tokenization-sdk": "^8.0.0",

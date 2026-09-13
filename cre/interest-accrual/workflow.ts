@@ -133,17 +133,17 @@ export const onCronTrigger = (runtime: TeeRuntime<Config>): string => {
 	const config = runtime.config
 	const http = new cre.capabilities.HTTPClient()
 
-	// 1. Latest commitment on the public notices topic.
+	// 1. Latest commitment for THIS asset on the public notices topic. Every asset under the credit
+	//    agreement shares the topic, so skip other assets' commitments and payout receipts.
 	const topicRes = http
-		.sendRequest(runtime, { url: `${config.mirrorUrl}/api/v1/topics/${config.noticeTopicId}/messages?limit=25&order=desc`, method: 'GET' })
+		.sendRequest(runtime, { url: `${config.mirrorUrl}/api/v1/topics/${config.noticeTopicId}/messages?limit=100&order=desc`, method: 'GET' })
 		.result()
 	if (!ok(topicRes)) throw new Error(`mirror node topic read failed: ${topicRes.statusCode}`)
-	// Latest complete notice-commitment (other message types, such as payout receipts, share the topic).
 	let commitment: z.infer<typeof commitmentSchema> | null = null
 	for (const m of completeMessages(mirrorMessagesSchema.parse(json(topicRes)).messages)) {
 		try {
 			const parsed = JSON.parse(m.text)
-			if (parsed?.type === 'notice-commitment') {
+			if (parsed?.type === 'notice-commitment' && parsed.facilityId === config.facilityId) {
 				commitment = commitmentSchema.parse(parsed)
 				break
 			}
@@ -151,8 +151,7 @@ export const onCronTrigger = (runtime: TeeRuntime<Config>): string => {
 			/* not JSON; skip */
 		}
 	}
-	if (!commitment) throw new Error('no commitment published on the notices topic')
-	if (commitment.facilityId !== config.facilityId) throw new Error(`latest commitment is for ${commitment.facilityId}, not ${config.facilityId}`)
+	if (!commitment) throw new Error(`no commitment published on the notices topic for ${config.facilityId}`)
 
 	// 2. Private notice, fetched from inside the enclave with the Vault DON secret.
 	const token = runtime.getSecret({ id: config.secretId }).result().value
@@ -179,7 +178,9 @@ export const onCronTrigger = (runtime: TeeRuntime<Config>): string => {
 		]),
 	)
 	if (recomputed.toLowerCase() !== commitment.commitment.toLowerCase()) {
-		throw new Error(`notice does not match the committed hash for period ${commitment.periodId}; accrual aborted`)
+		throw new Error(
+			`REJECTED: the rate notice served for period ${commitment.periodId} does not match the commitment published on HCS (TAMPERED or altered notice); accrual aborted, nothing released`,
+		)
 	}
 
 	// 4. Register snapshot: every holder's par balance from the ATS security in ONE call through the

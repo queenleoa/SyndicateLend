@@ -1,15 +1,60 @@
 {
   "valid": {
-    "ranAt": 1789166189154,
+    "ranAt": 1789311236716,
     "status": "verified",
-    "summary": "Commitment matched; accrual report generated for 30 holders over 30 days.",
+    "facilityId": "MHTLB-A",
+    "summary": "Commitment matched; accrual report generated for 30 holders (MHTLB-A).",
     "periodId": 3,
     "holders": 30,
-    "totalUnits": "1510416666648"
+    "totalUnits": "1631249999981"
   },
   "tamper": {
-    "ranAt": 1789166189154,
+    "ranAt": 1789311236716,
     "status": "rejected",
-    "summary": "Altered private notice rejected before any output crossed the TEE boundary."
+    "summary": "Negative test: a deliberately tampered rate notice (rate +25 bps) was rejected inside the enclave; nothing was released."
+  },
+  "assets": {
+    "MHTLB-A": {
+      "ranAt": 1789311236716,
+      "status": "verified",
+      "periodId": 3,
+      "holders": 30,
+      "totalUnits": "1631249999981"
+    },
+    "MH-RCF": {
+      "ranAt": 1789311236716,
+      "status": "verified",
+      "periodId": 1,
+      "holders": 33,
+      "totalUnits": "337500000000"
+    },
+    "MH-DDTL": {
+      "ranAt": 1789311236716,
+      "status": "verified",
+      "periodId": 1,
+      "holders": 33,
+      "totalUnits": "241666666665"
+    },
+    "MHTLB-B": {
+      "ranAt": 1789311236716,
+      "status": "verified",
+      "periodId": 1,
+      "holders": 33,
+      "totalUnits": "151041666665"
+    },
+    "MHTLB-C": {
+      "ranAt": 1789311236716,
+      "status": "verified",
+      "periodId": 1,
+      "holders": 33,
+      "totalUnits": "175208333332"
+    },
+    "MHCD": {
+      "ranAt": 1789311236716,
+      "status": "verified",
+      "periodId": 1,
+      "holders": 35,
+      "totalUnits": "145000000000"
+    }
   }
 }

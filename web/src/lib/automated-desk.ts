@@ -3,6 +3,7 @@ import { privy } from "./privy-server";
 import { readOrg, type Institution } from "./org";
 import { jsonStore } from "./store";
 import { loadRfqs, acceptQuote, grantConsent, newId, syncTrades } from "./rfq";
+import { onboardingOf, topUpGas } from "./onboarding";
 import { trades } from "./trades";
 import { publish } from "./hcs";
 import { listWalletIntents, submitIntentSignature } from "./approvals";
@@ -170,9 +171,10 @@ async function tick(renew: () => Promise<void>): Promise<string[]> {
   for (const inst of org.institutions.filter((i) => i.cosigner === "automated" && i.wallet)) {
     try { log.push(...(await cosignPendingForDesk(inst)).map((x) => `${inst.id} co-sign ${x}`)); } catch (e) { log.push(`${inst.id} co-sign failed: ${(e as Error).message.slice(0, 120)}`); }
   }
-  // 2. Every desk: advance the operator side of onboarding one step, broadcast executed desk steps.
+  // 2. Every desk: keep a gas float, advance the operator side of onboarding one step, broadcast executed desk steps.
   for (const inst of org.institutions.filter((i) => i.wallet && !i.registryDemo)) {
     try {
+      if (onboardingOf(inst).accountId) { const topUp = await topUpGas(inst.id); if (topUp) log.push(`${inst.id}: gas top-up ${topUp}`); }
       const step = await advanceOnboarding(inst.id);
       if (step) log.push(`${inst.id}: ${step}`);
     } catch (e) {

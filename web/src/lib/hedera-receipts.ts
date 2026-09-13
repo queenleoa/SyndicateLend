@@ -33,6 +33,16 @@ export async function readChainOutcome(hash: string, reader: ReceiptReader): Pro
   return null; // Timeout, missing indexing and provisional errors are NOT confirmed failures.
 }
 
+/** The relay refused the transaction because the wallet cannot cover gasLimit × maxFee. Not provisional: nothing was submitted. */
+export function insufficientGasFunds(error: unknown): boolean {
+  const text = error instanceof Error ? `${error.message} ${JSON.stringify((error as Error & { info?: unknown }).info ?? "")}` : String(error ?? "");
+  return /insufficient funds/i.test(text);
+}
+
+export class InsufficientGasFunds extends Error {
+  constructor(public from: string) { super("The wallet holds too little HBAR to reserve gas for this transaction. The venue tops it up automatically; check approved transactions again shortly. No replacement approval is needed."); }
+}
+
 export class PendingHederaTransaction extends Error {
   constructor(public hash: string) { super("Transaction submitted; Hedera confirmation is still pending. Check approved transactions again. No replacement approval is needed."); }
 }
@@ -69,5 +79,6 @@ export async function submitAndConfirm(tx: { hash: string; from: string; nonce: 
   }
   const rejection = relayRejection(sendError);
   if (rejection && !rejection.provisional) return { status: 0, reason: rejection.status };
+  if (insufficientGasFunds(sendError)) throw new InsufficientGasFunds(tx.from);
   throw new PendingHederaTransaction(tx.hash);
 }
