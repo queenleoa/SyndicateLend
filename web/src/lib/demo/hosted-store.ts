@@ -15,7 +15,9 @@ const LEASE_MS = 120_000; // HTTP handlers end after 60 seconds; interrupted wri
 type LocalDocument = { values: Record<string, string> };
 let localWriteTail: Promise<unknown> = Promise.resolve();
 
-const redisConfigured = () => Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+const REST_URL = () => process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL;
+const REST_TOKEN = () => process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN;
+const redisConfigured = () => Boolean(REST_URL() && REST_TOKEN());
 const localDocumentPath = () => path.join(dataDir(), "hosted-workflows.json");
 const localLeasePath = (scope: string) => path.join(dataDir(), `hosted-lease-${scope.replace(/[^a-zA-Z0-9_-]/g, "_")}.json`);
 
@@ -56,8 +58,8 @@ const key = (suffix: string) => `${process.env.STORE_NAMESPACE ?? "syndicatelend
 async function command(parts: (string | number)[]) {
   if (!redisConfigured()) throw new HostedDemoError(503, "Distributed workflow storage is unavailable.");
   try {
-    const response = await fetch(process.env.UPSTASH_REDIS_REST_URL!, {
-      method: "POST", headers: { Authorization: `Bearer ${process.env.UPSTASH_REDIS_REST_TOKEN}`, "content-type": "application/json" },
+    const response = await fetch(REST_URL()!, {
+      method: "POST", headers: { Authorization: `Bearer ${REST_TOKEN()}`, "content-type": "application/json" },
       body: JSON.stringify(parts), cache: "no-store", signal: AbortSignal.timeout(10_000),
     });
     const result = await response.json() as { result?: unknown; error?: string };

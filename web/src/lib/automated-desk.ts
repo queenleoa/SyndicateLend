@@ -139,6 +139,8 @@ const VALID_MIN = 30;
 
 /** One pass of the market maker and of every desk's onboarding. Safe to call often; rate-limited. */
 export async function marketTick(force = false): Promise<string[]> {
+  // MARKET_TICK=off: a local dev server sharing the hosted store must not drive the same desk wallets as production.
+  if (process.env.MARKET_TICK === "off") return [];
   const m = market.read();
   if (!force && Date.now() - m.lastTickAt < TICK_MS) return [];
   if (await operatorReserved()) return []; // a loan issuance owns the agent's signing account
