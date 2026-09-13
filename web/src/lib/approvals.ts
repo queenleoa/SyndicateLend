@@ -96,7 +96,9 @@ export async function rejectIntent(intentId: string) {
 
 export async function listWalletIntents(walletId: string) {
   const page = await privy().intents().list({ resource_id: walletId, sort_by: "created_at_desc", limit: 50 } as never);
-  return page.getPaginatedItems();
+  const intents = [];
+  for await (const intent of page) intents.push(intent);
+  return intents;
 }
 
 export async function getIntent(intentId: string) {

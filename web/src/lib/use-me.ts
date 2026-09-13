@@ -8,6 +8,8 @@ export interface Me {
   role: "trader" | "compliance" | "pm" | "observer" | null;
   roleLabel?: string;
   created?: boolean;
+  canReset?: boolean;
+  operatorAutomationPaused?: boolean;
   onboarding?: { ready: boolean; steps: { key: string; label: string; state: "done" | "active" | "pending"; detail?: string; needsDesk?: boolean; intentId?: string }[] };
   institution: {
     id: string;
@@ -31,7 +33,7 @@ export function useApi() {
       if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json");
       const res = await fetch(input, { ...init, headers });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error ?? `${res.status}`);
+      if (!res.ok) throw Object.assign(new Error(json.error ?? `${res.status}`), { status: res.status });
       return json;
     },
     [getAccessToken],

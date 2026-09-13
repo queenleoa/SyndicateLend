@@ -26,8 +26,16 @@ export interface Institution {
   policyId?: string;
   /** Automated liquidity desk: the quorum is two server-held keys, so it quotes, accepts and approves without people. */
   automated?: boolean;
+  /** Reserved demonstration desks, excluded from the ordinary market maker. */
+  registryDemo?: { keyFingerprint: string };
+  /** Automated counterparty used only by the agent-bank transfer-request demo; never market-makes. */
+  demoCounterparty?: boolean;
   /** Self-service desk created at a judge's first sign-in. */
   selfService?: boolean;
+  /** Quorum = the trader, the venue's automated compliance co-signer and a reserve key (threshold 2), so one human signature executes. */
+  cosigner?: "automated";
+  /** Public half of the desk's reserve signer (SPKI DER base64). The private half is never held by the venue. */
+  reserveSigner?: { publicKey: string };
   createdAt?: number;
 }
 

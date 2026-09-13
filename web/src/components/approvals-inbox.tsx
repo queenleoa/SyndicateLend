@@ -1,316 +1,175 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuthorizationSignature } from "@privy-io/react-auth";
-import { useApi, useMe } from "@/lib/use-me";
-import { PageHeader, Pill, Ring, Avatar, Empty, Receipt, HASHSCAN, when, ago, short } from "./ui";
+import { useApi } from "@/lib/use-me";
+import { approvalKind, barePrivyId, canApprove, hasSigned, type ApprovalIntent, type ApprovalKind } from "@/lib/approval-notifications";
+import { APPROVALS_UPDATED } from "@/lib/use-notifications";
+import { HASHSCAN, PrivyMark, when, short } from "./ui";
+import styles from "./institution-workspace.module.css";
 
-type Member = { email: string; role: string; privyUserId?: string };
-type Intent = {
-  intent_id: string;
-  intent_type: string;
-  status: string;
-  created_at: number;
-  expires_at: number;
-  authorization_details: { threshold: number; members: { type: string; user_id?: string; public_key?: string; signed_at: number | null }[] }[];
-  request_details: { body: { method?: string; params?: { transaction?: { to?: string; data?: string; chain_id?: number; nonce?: number } } } };
-  action_result?: { status_code: number; executed_at: number; response_body?: { data?: { signed_transaction?: string } } };
-};
-type Payload = {
+export type InstitutionApprovalPayload = {
   observer?: boolean;
-  institution: { id: string; name: string; wallet: { id: string; address: string }; members: Member[] };
+  institution: {
+    id: string; name: string; cosigner?: "automated" | null; wallet: { id: string; address: string };
+    keyQuorumId: string | null; policyId: string | null;
+    quorum: { threshold: number | null; userIds: string[] } | null;
+    members: { email: string; role: string; privyUserId?: string }[];
+  } | null;
   me: { userId: string; role: string };
-  intents: Intent[];
+  intents: ApprovalIntent[];
+  setupIntents?: Record<string, string>;
+  onboarding?: { ready: boolean; steps: { key: string; label: string; state: "done" | "active" | "pending"; detail?: string; needsDesk?: boolean; intentId?: string; canRetry?: boolean }[] };
+  venue?: { engine?: string; loan?: string; usd?: string };
 };
+const ROLE: Record<string, string> = { trader: "Trader", compliance: "Compliance officer", pm: "Portfolio manager" };
+const OPEN = new Set(["pending", "granted", "processing"]);
 
-const ROLE: Record<string, string> = { trader: "Trader", compliance: "Compliance", pm: "Portfolio manager" };
-const STATUS_TONE: Record<string, "ok" | "warn" | "bad" | "sky" | ""> = { pending: "warn", granted: "warn", processing: "sky", executed: "ok", failed: "bad", rejected: "bad", expired: "", dismissed: "" };
+function description(intent: ApprovalIntent, data: InstitutionApprovalPayload) {
+  const setup = approvalKind(intent.intent_id, data.setupIntents ?? {}) === "setup" ? data.setupIntents?.[intent.intent_id] : null;
+  if (setup) return { title: setup, detail: "One-time wallet setup. The institution’s quorum must authorise this transaction." };
+  const tx = intent.request_details?.body?.params?.transaction;
+  if (tx?.to?.toLowerCase() === data.venue?.engine?.toLowerCase() && /^0x93cdd68b[0-9a-fA-F]{64}/.test(tx?.data ?? "")) {
+    const tradeId = BigInt(`0x${tx!.data!.slice(10, 74)}`).toString();
+    return { title: `Approve settlement instruction #${tradeId}`, detail: "Authorise this institution’s side of the agreed trade. The counterparty approves separately." };
+  }
+  return { title: "Institutional transaction approval", detail: "Review the contract and transaction details before approving." };
+}
 
-/** Human description of what the desk wallet would sign. */
-function describe(it: Intent, venue: { engine?: string; loan?: string; usd?: string }) {
-  const tx = it.request_details?.body?.params?.transaction;
-  const to = (tx?.to ?? "").toLowerCase();
-  const sel = (tx?.data ?? "").slice(0, 10);
-  if (to === venue.engine?.toLowerCase()) {
-    if (sel === "0x93cdd68b") {
-      const tradeId = parseInt((tx?.data ?? "").slice(10, 74) || "0", 16);
-      return { title: `Approve settlement instruction #${tradeId}`, detail: "Binds the desk to the exact trade economics. Settlement schedules when the counterparty desk also approves." };
+export function useApprovalInbox() {
+  const api = useApi();
+  const { generateAuthorizationSignature } = useAuthorizationSignature();
+  const [data, setData] = useState<InstitutionApprovalPayload | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const pending = useRef<Promise<void> | null>(null);
+  const refresh = useCallback(() => {
+    if (pending.current) return pending.current;
+    pending.current = api("/api/approvals").then((value) => { setData(value); setError(null); })
+      .catch((e) => setError((e as Error).message)).finally(() => { pending.current = null; });
+    return pending.current;
+  }, [api]);
+  useEffect(() => {
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => { await refresh(); if (!stopped) timer = setTimeout(poll, 10_000); };
+    void poll();
+    return () => { stopped = true; clearTimeout(timer); };
+  }, [refresh]);
+
+  async function authorise(id: string) {
+    const result = await api(`/api/approvals/${encodeURIComponent(id)}/payload`) as { payloads: string[]; timestamp: number };
+    if (!result.payloads?.length) throw new Error("Privy did not return a signing payload. Refresh and try again.");
+    let lastError: Error | null = null;
+    for (const b64 of result.payloads) {
+      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      const { signature } = await generateAuthorizationSignature(bytes);
+      try {
+        await api(`/api/approvals/${encodeURIComponent(id)}/authorize`, { method: "POST", body: JSON.stringify({ signature, timestamp: result.timestamp }) });
+        return;
+      } catch (error) { lastError = error as Error; if (!/signature/i.test(lastError.message)) break; }
     }
-    return { title: "Settlement engine action", detail: sel };
+    throw lastError ?? new Error("The approval was not accepted.");
   }
-  if (to === venue.usd?.toLowerCase()) {
-    if (sel === "0x0a754de6") return { title: "Associate desk account with mock USD", detail: "Hedera Token Service association (HIP-719). Required once before the desk can hold or receive cash." };
-    if (sel === "0x095ea7b3") return { title: "Standing cash authorisation to the settlement engine", detail: "Lets the engine debit mock USD from this desk only inside an approved, scheduled settlement." };
+
+  async function act(ids: string[], action: "authorize" | "reject") {
+    if (busy || !data || !ids.length) return;
+    // Only explicitly recorded setup intents can be approved as a batch.
+    if (ids.length > 1 && ids.some((id) => approvalKind(id, data.setupIntents ?? {}) !== "setup")) {
+      setError("Trade approvals must be reviewed individually."); return;
+    }
+    setBusy(ids.length > 1 ? "setup-batch" : ids[0]); setError(null);
+    try {
+      for (const id of ids) {
+        const intent = data.intents.find((i) => i.intent_id === id);
+        if (!intent) throw new Error("This approval is no longer in your institution’s inbox.");
+        if (action === "authorize") {
+          if (!canApprove(intent, data.me.userId)) throw new Error("This action no longer needs your signature. Refresh the inbox.");
+          await authorise(id);
+        } else await api(`/api/approvals/${encodeURIComponent(id)}/reject`, { method: "POST" });
+      }
+      await refresh();
+      window.dispatchEvent(new Event(APPROVALS_UPDATED));
+    } catch (error) { setError((error as Error).message); }
+    finally { setBusy(null); }
   }
-  if (to === venue.loan?.toLowerCase()) {
-    if (sel === "0x095ea7b3") return { title: "Standing loan-token authorisation to the settlement engine", detail: "Lets the engine deliver this desk's loan tokens only inside an approved, scheduled settlement." };
+
+  async function syncApproved() {
+    if (busy) return;
+    setBusy("execution-sync"); setError(null);
+    try {
+      await api("/api/approvals/sync", { method: "POST" });
+      await refresh();
+      window.dispatchEvent(new Event(APPROVALS_UPDATED));
+    } catch (error) { setError((error as Error).message); }
+    finally { setBusy(null); }
   }
-  return { title: "Sign transaction from desk wallet", detail: `${short(to)} · ${sel}` };
+
+  async function retrySetup(step: string, intentId: string) {
+    if (busy || !window.confirm("Recover this setup approval? We will restore an existing matching approval and withdraw obsolete duplicate setup requests where possible. A new transaction requires fresh quorum approvals. Completed setup and funding will not be repeated.")) return;
+    setBusy(`retry-${step}`); setError(null);
+    try {
+      const result = await api("/api/approvals/setup/retry", { method: "POST", body: JSON.stringify({ step, intentId }) }) as { message: string };
+      await refresh();
+      setNotice(result.message);
+      window.dispatchEvent(new Event(APPROVALS_UPDATED));
+    } catch (error) { setError((error as Error).message); }
+    finally { setBusy(null); }
+  }
+
+  return { data, error, notice, busy, refresh, act, syncApproved, retrySetup };
+}
+
+export function ApprovalList({ inbox, kind }: { inbox: ReturnType<typeof useApprovalInbox>; kind: ApprovalKind }) {
+  const [showHistory, setShowHistory] = useState(false);
+  const { data, busy, act } = inbox;
+  if (!data) return null;
+  const filtered = data.intents.filter((i) => approvalKind(i.intent_id, data.setupIntents ?? {}) === kind);
+  const open = filtered.filter((i) => !i.superseded && OPEN.has(i.status));
+  const closed = filtered.filter((i) => i.superseded || !OPEN.has(i.status));
+  const actionable = open.filter((i) => canApprove(i, data.me.userId));
+  const members = new Map(data.institution?.members.map((m) => [barePrivyId(m.privyUserId), m]));
+  return <section id={kind === "setup" ? "setup-approvals" : "trade-approvals"} className={styles.inbox}>
+    <div className={styles.sectionHeader}>
+      <div><h2>{kind === "setup" ? "Wallet setup approvals" : "Trade approvals"} <span className={styles.count}>{actionable.length}</span></h2><p>{actionable.length ? "Waiting for your signature" : open.length ? "Waiting for other signers or execution" : "No approvals waiting"}</p></div>
+      {kind === "setup" && actionable.length > 1 && <button className={styles.primary} disabled={busy !== null} onClick={() => void act(actionable.map((i) => i.intent_id), "authorize")}>{busy === "setup-batch" ? "Signing with Privy…" : <>Sign all {actionable.length} with <PrivyMark height={20} /></>}</button>}
+    </div>
+    {data.institution?.cosigner === "automated" && open.length > 0 && <p className={styles.cosignerNote}>Your signature is enough: the venue’s automated compliance co-signer completes the 2-of-2 quorum right after you approve.</p>}
+    {open.length === 0 ? <div className={styles.empty}>{kind === "setup" ? "One-time wallet permissions appear here when they are ready. The agent bank is preparing them; this page refreshes by itself." : "When your institution accepts a trade and the agent grants consent, the settlement instruction appears here."}</div> : <div className={styles.intentList}>
+      {open.map((intent) => {
+        const desc = description(intent, data);
+        const quorum = intent.authorization_details[0];
+        const signed = quorum?.members.filter((m) => m.signed_at != null).length ?? 0;
+        const mine = hasSigned(intent, data.me.userId);
+        const actionable = canApprove(intent, data.me.userId);
+        const tx = intent.request_details?.body?.params?.transaction;
+        return <article key={intent.intent_id} id={`intent-${intent.intent_id}`} className={styles.intent}>
+          <div className={styles.intentTop}><span className={styles.status}>{intent.status}</span><strong>{signed} / {quorum?.threshold ?? "—"} signatures</strong></div>
+          <div className={styles.intentHeading}><h3>{desc.title}</h3><div className={styles.buttons}>{["compliance", "pm"].includes(data.me.role) && intent.status === "pending" && <button className={styles.reject} disabled={busy !== null} onClick={() => void act([intent.intent_id], "reject")}>Reject</button>}<button className={styles.primary} disabled={busy !== null || !actionable} onClick={() => void act([intent.intent_id], "authorize")}>{busy === intent.intent_id ? "Signing with Privy…" : mine ? "Your approval recorded" : actionable ? <>Approve with <PrivyMark height={20} /></> : "Awaiting execution / quorum"}</button></div></div><p>{desc.detail}</p>
+          <div className={styles.signers}>{quorum?.members.map((member, index) => {
+            const staff = members.get(barePrivyId(member.user_id));
+            const label = staff ? ROLE[staff.role] ?? staff.role : member.type === "user" ? "Quorum member" : data.institution?.cosigner === "automated" ? "Automated compliance co-signer" : "Authorisation key";
+            return <span key={index} className={member.signed_at != null ? styles.signed : styles.waiting}>{label}<b>{member.signed_at != null ? "Signed" : member.type === "user" ? "Awaiting signature" : "Co-signs after you"}</b></span>;
+          })}</div>
+          <div className={styles.intentActions}>
+            <details><summary>Transaction details</summary><dl className={styles.metadata}><div><dt>Contract</dt><dd>{tx?.to ? <a href={`${HASHSCAN}/contract/${tx.to}`} target="_blank" rel="noreferrer">{short(tx.to, 8, 6)} ↗</a> : "Unavailable"}</dd></div><div><dt>Network</dt><dd>Hedera {tx?.chain_id === 296 ? "testnet" : `chain ${tx?.chain_id ?? "unknown"}`}</dd></div><div><dt>Created</dt><dd>{when(intent.created_at)}</dd></div><div><dt>Expires</dt><dd>{when(intent.expires_at)}</dd></div><div><dt>Method selector</dt><dd>{tx?.data?.slice(0, 10) ?? "Unavailable"}</dd></div></dl></details>
+          </div>
+        </article>;
+      })}
+    </div>}
+    {closed.length > 0 && <div className={styles.history}><button className={styles.textButton} onClick={() => setShowHistory(!showHistory)}>{showHistory ? "Hide" : "Show"} {closed.length} completed or closed actions</button>{showHistory && <ul>{closed.map((intent) => <li key={intent.intent_id}><span>{description(intent, data).title}</span><b>{intent.superseded ? "Superseded" : intent.status}</b><time>{when(intent.created_at)}</time></li>)}</ul>}</div>}
+  </section>;
 }
 
 export function ApprovalsInbox() {
-  const api = useApi();
-  const [data, setData] = useState<Payload | null>(null);
-  const [venue, setVenue] = useState<{ engine?: string; loan?: string; usd?: string }>({});
-  const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [showDone, setShowDone] = useState(false);
-  const { generateAuthorizationSignature } = useAuthorizationSignature();
-
-  const { me, reload: reloadMe } = useMe();
-  const load = useCallback(() => api("/api/approvals").then(setData).catch((e) => setErr(e.message)), [api]);
-  useEffect(() => {
-    load();
-    api("/api/register").then((r) => setVenue({ engine: r.engine?.address, loan: r.facility?.evmAddress, usd: r.mockUsd?.evmAddress })).catch(() => {});
-    const t = setInterval(load, 8000);
-    return () => clearInterval(t);
-  }, [load, api]);
-
-  async function signAll(ids: string[]) {
-    setBusy("all");
-    setErr(null);
-    try {
-      for (const id of ids) {
-        const { payloads, timestamp } = (await api(`/api/approvals/${id}/payload`)) as { payloads: string[]; timestamp: number };
-        let lastErr: Error | null = null;
-        for (const b64 of payloads) {
-          const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-          const { signature } = await generateAuthorizationSignature(bytes);
-          try {
-            await api(`/api/approvals/${id}/authorize`, { method: "POST", body: JSON.stringify({ signature, timestamp }) });
-            lastErr = null;
-            break;
-          } catch (e) {
-            lastErr = e as Error;
-            if (!/signature/i.test(lastErr.message)) break;
-          }
-        }
-        if (lastErr) throw lastErr;
-      }
-      await load();
-      reloadMe();
-      api("/api/trades?sync=1").catch(() => {});
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function act(id: string, action: "authorize" | "reject") {
-    setBusy(id + action);
-    setErr(null);
-    try {
-      if (action === "authorize") {
-        const { payloads, timestamp } = (await api(`/api/approvals/${id}/payload`)) as { payloads: string[]; timestamp: number };
-        let lastErr: Error | null = null;
-        for (const b64 of payloads) {
-          const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-          const { signature } = await generateAuthorizationSignature(bytes);
-          try {
-            await api(`/api/approvals/${id}/authorize`, { method: "POST", body: JSON.stringify({ signature, timestamp }) });
-            lastErr = null;
-            break;
-          } catch (e) {
-            lastErr = e as Error;
-            if (!/signature/i.test(lastErr.message)) break;
-          }
-        }
-        if (lastErr) throw lastErr;
-      } else {
-        await api(`/api/approvals/${id}/${action}`, { method: "POST" });
-      }
-      await load();
-      // Let the venue pick up executed intents (broadcast to Hedera) without waiting for the poll.
-      api("/api/trades?sync=1").catch(() => {});
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  if (err && !data) return <p className="text-sm text-bad">{err}</p>;
-  if (!data) return <p className="text-sm text-ink-muted">Loading…</p>;
-  if (data.observer) {
-    return (
-      <div>
-        <PageHeader title="Approvals" sub="Each institution's desk wallet is owned by a 2-of-3 quorum of named staff." />
-        <Empty title="Approvals belong to a desk">
-          A trader proposes an action; two of the three members must sign it in their own sessions before Privy signs the transaction and the venue broadcasts it to Hedera. Observers can follow the outcome on the blotter, where every approval links to its Hedera receipt.
-        </Empty>
-      </div>
-    );
-  }
-
-  const bare = (id?: string) => (id ?? "").replace(/^did:privy:/, "");
-  const memberByUser = new Map(data.institution.members.map((m) => [bare(m.privyUserId), m]));
-  const iSigned = (it: Intent) => it.authorization_details.some((a) => a.members.some((m) => m.type === "user" && bare(m.user_id) === bare(data.me.userId) && m.signed_at));
-  const canReject = ["compliance", "pm"].includes(data.me.role);
-  const open = data.intents.filter((i) => ["pending", "granted", "processing"].includes(i.status));
-  const closed = data.intents.filter((i) => !["pending", "granted", "processing"].includes(i.status));
-
-  return (
-    <div>
-      <PageHeader
-        title={`${data.institution.name}: desk approvals`}
-        sub={
-          <>
-            Only <strong>your own desk&apos;s</strong> actions appear here; the counterparty approves on its side. The desk wallet <Receipt href={`${HASHSCAN}/account/${data.institution.wallet.address}`}>{short(data.institution.wallet.address, 8, 6)}</Receipt> is owned by a{" "}
-            <strong>2-of-{data.institution.members.filter((m) => (m as Member & { quorumMember?: boolean }).quorumMember !== false).length} quorum</strong> of named people. You are the <strong>{ROLE[data.me.role] ?? data.me.role}</strong>.
-          </>
-        }
-        right={
-          <button className="btn btn-secondary" onClick={load}>
-            Refresh
-          </button>
-        }
-      />
-      {err && <p className="mb-4 text-sm text-bad">{err}</p>}
-
-      <div className="panel-dark p-5 mb-8 grid grid-cols-[auto_1fr] gap-5 items-center">
-        <div className="flex -space-x-1.5">
-          {data.institution.members.map((m) => (
-            <Avatar key={m.email} name={m.email} />
-          ))}
-        </div>
-        <div className="text-sm leading-relaxed">
-          <span className="text-[#b9dff2]">How an approval works.</span> A trader proposes an action. Each approver signs it in their own browser with a key bound to their login session; the platform relays the signature but never holds a desk key. When two of the three have signed, Privy signs the transaction inside its enclave and the venue broadcasts it to Hedera. The wallet policy only permits the settlement venue&apos;s contracts.
-        </div>
-      </div>
-
-      {me?.onboarding && !me.onboarding.ready && (
-        <section className="card p-6 mb-8">
-          <div className="flex items-start justify-between gap-6">
-            <div>
-              <div className="label">Desk onboarding</div>
-              <h2 className="h2 mt-1">Getting {data.institution.name} onto the register</h2>
-              <p className="mt-2 text-sm text-ink-muted leading-relaxed">
-                The operator steps run by themselves. The three desk-signed steps need <strong>two of your three quorum members</strong>. Sign them all as the {ROLE[data.me.role] ?? data.me.role}, then sign out and sign in as{" "}
-                <strong>{data.institution.members.find((m) => m.role === "compliance")?.email}</strong> (the one-time code arrives in the same inbox) and sign them again.
-              </p>
-            </div>
-            {(() => { const unsigned = open.filter((it) => !iSigned(it)).map((it) => it.intent_id); return unsigned.length > 0 && <button className="btn btn-primary" disabled={busy !== null} onClick={() => signAll(unsigned)}>{busy === "all" ? "Signing…" : `Sign all ${unsigned.length} as ${ROLE[data.me.role] ?? data.me.role}`}</button>; })()}
-          </div>
-          <ol className="onboarding-steps mt-5">
-            {me.onboarding.steps.map((st) => (
-              <li key={st.key} className={`onboarding-step ${st.state}`}>
-                <i>{st.state === "done" ? "✓" : st.state === "active" ? "•" : ""}</i>
-                <div><strong>{st.label}</strong>{st.detail && <small>{st.detail}</small>}</div>
-              </li>
-            ))}
-          </ol>
-        </section>
-      )}
-
-      {open.length === 0 ? (
-        <Empty title="Nothing waiting for the desk">Accepting a quote on the blotter, or onboarding steps from administration, create the next approval.</Empty>
-      ) : (
-        <div className="space-y-4">
-          {(() => { const unsigned = open.filter((it) => !iSigned(it)).map((it) => it.intent_id); return unsigned.length > 1 && <div className="flex justify-end"><button className="btn btn-secondary btn-sm" disabled={busy !== null} onClick={() => signAll(unsigned)}>{busy === "all" ? "Signing…" : `Sign all ${unsigned.length}`}</button></div>; })()}
-          {open.map((it) => (
-            <IntentCard key={it.intent_id} it={it} venue={venue} memberByUser={memberByUser} bare={bare} iSigned={iSigned(it)} busy={busy} canReject={canReject} onAct={act} />
-          ))}
-        </div>
-      )}
-
-      <div className="mt-10 flex items-center justify-between">
-        <h2 className="h2">History</h2>
-        <button className="btn btn-ghost btn-sm" onClick={() => setShowDone((v) => !v)}>
-          {showDone ? "Hide" : `Show ${closed.length}`}
-        </button>
-      </div>
-      {showDone && (
-        <div className="mt-2 card-flat overflow-x-auto">
-          <table className="grid">
-            <thead>
-              <tr>
-                <th>Action</th>
-                <th>Status</th>
-                <th>Signed by</th>
-                <th>Created</th>
-                <th>Executed</th>
-              </tr>
-            </thead>
-            <tbody>
-              {closed.map((it) => {
-                const d = describe(it, venue);
-                const q = it.authorization_details[0];
-                return (
-                  <tr key={it.intent_id}>
-                    <td>{d.title}</td>
-                    <td>
-                      <Pill tone={STATUS_TONE[it.status]}>{it.status}</Pill>
-                    </td>
-                    <td className="text-xs">
-                      {q?.members
-                        .filter((m) => m.signed_at)
-                        .map((m) => memberByUser.get(bare(m.user_id))?.role ?? "key")
-                        .join(", ")}
-                    </td>
-                    <td className="text-xs text-ink-muted">{when(it.created_at)}</td>
-                    <td className="text-xs text-ink-muted">{it.action_result ? when(it.action_result.executed_at) : "—"}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function IntentCard({ it, venue, memberByUser, bare, iSigned, busy, canReject, onAct }: {
-  it: Intent;
-  venue: { engine?: string; loan?: string; usd?: string };
-  memberByUser: Map<string, Member>;
-  bare: (s?: string) => string;
-  iSigned: boolean;
-  busy: string | null;
-  canReject: boolean;
-  onAct: (id: string, a: "authorize" | "reject") => void;
-}) {
-  const d = describe(it, venue);
-  const q = it.authorization_details[0];
-  const signed = q?.members.filter((m) => m.signed_at).length ?? 0;
-  const tx = it.request_details?.body?.params?.transaction;
-  const signing = busy === it.intent_id + "authorize";
-  return (
-    <div className="card p-5 grid grid-cols-[auto_1fr_auto] gap-5">
-      <Ring value={signed} max={q?.threshold ?? 2} tone={signed >= (q?.threshold ?? 2) ? "ok" : ""} />
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <Pill tone={STATUS_TONE[it.status]} live={it.status === "pending"}>{it.status}</Pill>
-          <span className="h2">{d.title}</span>
-        </div>
-        <p className="mt-1 text-sm text-ink-muted">{d.detail}</p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {q?.members.map((m, i) => {
-            const mem = m.type === "user" ? memberByUser.get(bare(m.user_id)) : undefined;
-            const label = mem ? `${ROLE[mem.role] ?? mem.role} · ${mem.email}` : m.type === "user" ? bare(m.user_id) : "authorization key";
-            return (
-              <span key={i} className={`pill ${m.signed_at ? "pill-ok" : ""}`}>
-                {label}
-                {m.signed_at ? ` · signed ${ago(m.signed_at)}` : " · waiting"}
-              </span>
-            );
-          })}
-        </div>
-        <div className="mt-3 text-[11px] text-ink-faint mono">
-          to {short(tx?.to ?? "", 8, 6)} · chain {tx?.chain_id} · nonce {tx?.nonce ?? "—"} · proposed {when(it.created_at)} · expires {ago(it.expires_at)}
-        </div>
-      </div>
-      <div className="flex flex-col items-end gap-2">
-        <button className="btn btn-primary" disabled={busy !== null || iSigned} onClick={() => onAct(it.intent_id, "authorize")}>
-          {iSigned ? "You have signed" : signing ? "Signing in browser…" : "Approve with my key"}
-        </button>
-        {canReject && (
-          <button className="btn btn-danger btn-sm" disabled={busy !== null} onClick={() => onAct(it.intent_id, "reject")}>
-            Reject
-          </button>
-        )}
-      </div>
-    </div>
-  );
+  const inbox = useApprovalInbox();
+  return <div className={styles.workspace}>
+    <header className={styles.header}><div><p className={styles.eyebrow}>Secondary exchange · Institutional authorisation</p><h1>Trade approvals</h1><p>Authorise your institution’s trades. Wallet setup lives in Institution.</p></div><Image src="/integrations/privy.png" alt="Privy" width={110} height={40} className={styles.privy} /></header>
+    <div className={styles.toolbar}><Link href="/institution">Institution & wallet setup →</Link><div className={styles.buttons}><button className={styles.secondary} disabled={inbox.busy !== null} onClick={() => void inbox.syncApproved()}>{inbox.busy === "execution-sync" ? "Checking execution…" : "Check approved transactions"}</button><button className={styles.secondary} onClick={() => void inbox.refresh()}>Refresh</button></div></div>
+    {inbox.error && <div role="alert" className={styles.error}>{inbox.error}</div>}
+    {!inbox.data ? <p className={styles.empty}>Loading institutional approvals…</p> : inbox.data.observer ? <p className={styles.empty}>Trade approvals are available to members of an institution.</p> : <ApprovalList inbox={inbox} kind="trade" />}
+  </div>;
 }

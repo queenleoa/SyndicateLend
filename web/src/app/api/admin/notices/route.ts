@@ -1,9 +1,9 @@
 import { jsonError, HttpError, requireSession } from "@/lib/privy-server";
 import { createAndCommit, notices } from "@/lib/notices";
+import { isPlatformAdmin } from "@/lib/agent";
 
 function requireOperator(userId: string) {
-  const allowed = (process.env.PLATFORM_ADMIN_PRIVY_USER_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  if (allowed.length && !allowed.includes(userId)) throw new HttpError(403, "not a platform administrator");
+  if (!isPlatformAdmin(userId)) throw new HttpError(403, "not a platform administrator");
 }
 
 /** Public view of notices: commitments and periods only, never the rate or nonce. */

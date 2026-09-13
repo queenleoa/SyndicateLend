@@ -3,10 +3,11 @@ import { Contract, JsonRpcProvider, Wallet, parseEther, MaxUint256, Interface } 
 import { AccountId, Client, PrivateKey, TokenGrantKycTransaction, TokenId, TokenMintTransaction, TransferTransaction } from "@hashgraph/sdk";
 import { readOrg, writeOrg, type Institution } from "./org";
 import { venue } from "./venue";
-import { HEDERA_RPC, HASHSCAN } from "./hedera";
+import { HEDERA_RPC, HASHSCAN, walletNonce } from "./hedera";
 import { proposeDeskTx, fetchIntent, broadcastIntent, signedTxOf } from "./desk-tx";
 import fs from "node:fs";
 import path from "node:path";
+import { DeskNonceMismatch, PendingHederaTransaction } from "./hedera-receipts";
 
 const require = createRequire(import.meta.url);
 const iasset = require("@hashgraph/asset-tokenization-contracts/artifacts/contracts/facets/IAsset.sol/IAsset.json");
@@ -29,6 +30,8 @@ const MIRROR = process.env.HEDERA_MIRROR_URL ?? "https://testnet.mirrornode.hede
  *   allowUsd        DESK intent: mUSD.approve(engine, max)
  */
 export interface HederaOnboarding {
+  /** Exact IDs retained when a failed/expired setup intent is replaced. */
+  intentHistory?: { intentId: string; step: "usdAssociate" | "allowLoan" | "allowUsd" }[];
   accountId?: string;
   fundTx?: string;
   eligibilityTx?: string;
@@ -48,6 +51,7 @@ export interface DeskStep {
   threshold?: number;
   txHash?: string;
   error?: string;
+  errorCode?: "WRONG_NONCE" | "NONCE_GAP" | "STALE_NONCE" | "REVERTED" | "PENDING";
 }
 
 function operator() {
@@ -136,18 +140,32 @@ export async function allocate(id: string, par: string) {
 }
 
 /** Propose a desk-signed step (intent). */
-export async function proposeDeskStep(id: string, step: "usdAssociate" | "allowLoan" | "allowUsd") {
+export async function proposeDeskStep(id: string, step: "usdAssociate" | "allowLoan" | "allowUsd", requireCurrentNonce = false) {
   const i = inst(id);
+  const spec = deskStepSpec(step);
+  const intent = await proposeDeskTx({ walletId: i.wallet!.id, walletAddress: i.wallet!.address, to: spec.to, data: spec.data, gasLimit: spec.gas, requireCurrentNonce });
+  recordDeskStep(id, step, { intentId: intent.intent_id, status: intent.status, signatures: 0, threshold: intent.authorization_details[0]?.threshold });
+  return intent.intent_id;
+}
+
+export function deskStepSpec(step: "usdAssociate" | "allowLoan" | "allowUsd") {
   const v = venue();
-  const spec = {
+  return {
     usdAssociate: { to: v.mockUsd, data: hrc719.encodeFunctionData("associate", []), gas: 1_000_000 },
     allowLoan: { to: v.loanToken, data: erc20.encodeFunctionData("approve", [v.settlementEngine, MaxUint256]), gas: 1_500_000 },
     // HTS allowances are int64: approving 2^256-1 on the mock-USD facade reverts. The ATS token takes a uint256.
     allowUsd: { to: v.mockUsd, data: erc20.encodeFunctionData("approve", [v.settlementEngine, (1n << 63n) - 1n]), gas: 1_000_000 },
   }[step];
-  const intent = await proposeDeskTx({ walletId: i.wallet!.id, walletAddress: i.wallet!.address, to: spec.to, data: spec.data, gasLimit: spec.gas });
-  save(id, (hh) => (hh[step] = { intentId: intent.intent_id, status: intent.status, signatures: 0, threshold: intent.authorization_details[0]?.threshold }));
-  return intent.intent_id;
+}
+
+export function recordDeskStep(id: string, step: "usdAssociate" | "allowLoan" | "allowUsd", replacement: DeskStep) {
+  save(id, (hh) => {
+    const previous = hh[step]?.intentId;
+    if (previous && previous !== replacement.intentId && !(hh.intentHistory ?? []).some((i) => i.intentId === previous)) {
+      (hh.intentHistory ??= []).push({ intentId: previous, step });
+    }
+    hh[step] = replacement;
+  });
 }
 
 /** Operator: grant mUSD KYC and transfer opening cash. Requires the association to be on-chain. */
@@ -180,30 +198,52 @@ export async function fundUsd(id: string, usdWhole: string) {
 }
 
 /** Refresh desk-step intents; broadcast executed ones. */
+const syncRegistry = globalThis as typeof globalThis & { syndicatelendOnboardingSync?: Map<string, Promise<string[]>> };
+const syncing = syncRegistry.syndicatelendOnboardingSync ??= new Map<string, Promise<string[]>>();
 export async function syncOnboarding(id: string) {
+  const active = syncing.get(id);
+  if (active) return active;
+  const work = syncDeskOnboarding(id);
+  syncing.set(id, work);
+  try { return await work; }
+  finally { if (syncing.get(id) === work) syncing.delete(id); }
+}
+
+async function syncDeskOnboarding(id: string) {
   const i = inst(id);
   const h = onboardingOf(i);
   const out: string[] = [];
   for (const step of ["usdAssociate", "allowLoan", "allowUsd"] as const) {
     const s = h[step];
-    if (!s || s.txHash) continue;
+    if (!s) break;
+    if (s.txHash) { if (!s.error) continue; break; }
     let upd: DeskStep = { ...s };
     try {
       const intent = await fetchIntent(s.intentId);
+      if (intent.resource_id !== i.wallet!.id) throw new Error("This setup intent does not belong to the institution wallet.");
       const q = intent.authorization_details[0];
-      upd = { ...s, status: intent.status, signatures: q?.members.filter((m) => m.signed_at).length ?? 0, threshold: q?.threshold, error: undefined };
+      upd = { ...s, status: intent.status, signatures: q?.members.filter((m) => m.signed_at).length ?? 0, threshold: q?.threshold, error: undefined, errorCode: undefined };
+      if (intent.status === "pending") {
+        const nonce = Number(intent.request_details?.body?.params?.transaction?.nonce);
+        const expected = await walletNonce(i.wallet!.address);
+        if (Number.isSafeInteger(nonce) && nonce !== expected) throw new DeskNonceMismatch(nonce, expected);
+      }
       if (intent.status === "executed" && signedTxOf(intent)) {
         const r = await broadcastIntent(intent);
         upd.txHash = r.hash;
-        upd.error = r.status === 1 ? undefined : "reverted";
+        upd.error = r.status === 1 ? undefined : r.reason === "WRONG_NONCE" ? "Hedera rejected this transaction's nonce. Request a replacement setup approval." : "reverted";
+        upd.errorCode = r.status === 1 ? undefined : r.reason === "WRONG_NONCE" ? "WRONG_NONCE" : "REVERTED";
         out.push(`${step}: ${r.link}`);
       }
       save(id, (hh) => (hh[step] = upd));
+      if (!upd.txHash || upd.error || out.length) break; // One broadcast per request; Privy execution alone is not confirmation.
     } catch (e) {
       // Keep the refreshed intent status; record the broadcast failure in a readable form.
       const err = e as Error & { info?: { responseBody?: string }; error?: { message?: string } };
       const text = err.error?.message ?? err.info?.responseBody ?? err.message ?? String(e);
-      save(id, (hh) => (hh[step] = { ...upd, error: text.slice(0, 300) }));
+      const errorCode = e instanceof PendingHederaTransaction ? "PENDING" : e instanceof DeskNonceMismatch ? e.nonce > e.expected ? "NONCE_GAP" : "STALE_NONCE" : undefined;
+      save(id, (hh) => (hh[step] = { ...upd, error: text.slice(0, 300), errorCode }));
+      break;
     }
   }
   return out;

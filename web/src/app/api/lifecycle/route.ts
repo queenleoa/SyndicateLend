@@ -1,37 +1,39 @@
-import fs from "node:fs";
-import path from "node:path";
 import { optionalDesk } from "@/lib/desk-auth";
 import { jsonError } from "@/lib/privy-server";
 import { notices } from "@/lib/notices";
+import { findAsset, listAssets, readDeployment } from "@/lib/assets";
+import { readDistribution, readEvidence, readPayout } from "@/lib/register-interest";
 
-type Evidence = { valid?: { ranAt: number; status: "verified"; summary?: string }; tamper?: { ranAt: number; status: "rejected"; summary?: string } };
+export const maxDuration = 60;
 
-function readJson<T>(file: string): T | null {
-  return fs.existsSync(file) ? (JSON.parse(fs.readFileSync(file, "utf8")) as T) : null;
-}
-
+/** Interest workflow evidence for one asset (?facility=SYMBOL, default: the first tranche). */
 export async function GET(req: Request) {
   try {
     await optionalDesk(req);
-    const deployment = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), "../ops/deployments/testnet.json"), "utf8"));
-    const publicNotices = notices.read().notices.map((n) => ({ facilityId: n.facilityId, periodId: n.periodId, periodStart: n.periodStart, periodEnd: n.periodEnd, holders: n.holders, commitment: n.commitment, createdAt: n.createdAt, hcs: n.hcs })).sort((a, b) => b.periodId - a.periodId);
-    const evidenceDir = path.resolve(process.cwd(), "../cre/evidence");
-    const evidence = readJson<Evidence>(path.join(evidenceDir, "latest.json")) ?? {};
-    // Released workflow output (commitment, period, holders, amounts) and the mock-USD payout made from it.
-    const distribution = readJson<{ ranAt: number; facilityId: string; periodId: number; commitment: string; days: string; distribution: { holder: string; amountUnits: string }[]; totalUnits: string }>(path.join(evidenceDir, "distribution.json"));
-    const payout = readJson<{ ranAt: number; facilityId: string; periodId: number; commitment: string; transactionId: string; hashscan: string; totalPaidUnits: string; paid: { holder: string; accountId: string; amountUnits: string }[]; skipped: { holder: string; reason: string }[]; hcs?: { sequence: number } }>(path.join(evidenceDir, "payout.json"));
+    const deployment = readDeployment();
+    const assets = await listAssets(deployment);
+    const url = new URL(req.url);
+    const asset = findAsset(assets, url.searchParams.get("facility")) ?? assets.find((a) => a.symbol === deployment.loanToken.symbol) ?? assets[0];
+    const symbol = asset?.symbol ?? deployment.loanToken.symbol;
+    const publicNotices = notices.read().notices.filter((n) => n.facilityId === symbol).map((n) => ({ facilityId: n.facilityId, periodId: n.periodId, periodStart: n.periodStart, periodEnd: n.periodEnd, holders: n.holders, commitment: n.commitment, createdAt: n.createdAt, hcs: n.hcs })).sort((a, b) => b.periodId - a.periodId);
+    const evidence = readEvidence();
+    const distribution = readDistribution(symbol);
+    const payout = readPayout(symbol, distribution?.commitment ?? null);
+    const own = evidence.assets?.[symbol];
     return Response.json({
+      facility: symbol,
+      assets: assets.map((a) => ({ symbol: a.symbol, name: a.name })),
       notices: publicNotices,
-      evidence,
+      evidence: { valid: own ? { ranAt: own.ranAt, status: own.status, summary: `Commitment matched; accrual report generated for ${own.holders} holders (${symbol}).`, periodId: own.periodId } : evidence.valid?.facilityId === symbol || (!evidence.valid?.facilityId && symbol === deployment.loanToken.symbol) ? evidence.valid : undefined, tamper: evidence.tamper },
       distribution,
       payout,
       topic: deployment.topics.notices,
-      loanToken: deployment.loanToken,
+      loanToken: asset ? { tokenId: asset.tokenId, evmAddress: asset.evmAddress } : deployment.loanToken,
       mockUsd: deployment.mockUsd,
       confidential: ["all-in rate", "day-count basis", "private nonce", "authenticated notice response"],
       released: ["commitment", "period id", "holder addresses", "distribution amounts"],
       tee: { type: "AWS Nitro", region: "us-west-2", deployment: "private beta" },
-    });
+    }, { headers: { "cache-control": "no-store" } });
   } catch (e) {
     return jsonError(e);
   }

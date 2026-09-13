@@ -11,6 +11,7 @@ type Payload = {
   balances: { hbar: string; par: string; usd: string; loanAllowance: string; usdAllowance: string; hashscan: string } | null;
   trades: TradeView[];
   names: Record<string, string>;
+  positions: { symbol: string; name: string; facilityType: string; par: string | null; tradeable: boolean }[];
   accruals: { facilityId: string; periodId: number; days: string; commitment: string; amountUnits: string | null; paid: { accountId: string; amountUnits: string } | null; skipped: string | null; payoutLink: string | null }[];
 };
 
@@ -53,7 +54,7 @@ export function Portfolio() {
       />
       {b ? (
         <div className="grid grid-cols-4 gap-4">
-          <Stat k="MHTLB-A position (US$ par)" v={par(b.par)} sub="on the ATS register" />
+          <Stat k="Loan positions (US$ par)" v={par(d.positions.reduce((sum, p) => sum + Number(p.par ?? 0), 0))} sub={`${d.positions.filter((p) => Number(p.par ?? 0) > 0).length} of ${d.positions.length} assets on the register`} />
           <Stat k="Mock USD" v={`$${money(b.usd)}`} sub="HTS permissioned cash" />
           <Stat k="HBAR" v={(Number(b.hbar) / 1e18).toFixed(2)} sub="network fees" />
           <Stat
@@ -70,6 +71,25 @@ export function Portfolio() {
         <Stat k="Sold (settled par)" v={par(sold)} />
       </div>
       <section className="mt-10">
+        <h2 className="h2 mb-3">Positions by asset</h2>
+        <div className="card-flat overflow-x-auto">
+          <table className="grid">
+            <thead><tr><th>Asset</th><th>Facility</th><th className="td-right">Par (US$)</th><th>Secondary market</th></tr></thead>
+            <tbody>
+              {d.positions.map((p) => (
+                <tr key={p.symbol}>
+                  <td><strong>{p.symbol}</strong> · {p.name}</td>
+                  <td>{p.facilityType}</td>
+                  <td className="td-right num">{p.par === null ? "unavailable" : par(p.par)}</td>
+                  <td>{p.tradeable ? <Pill tone="ok">RFQ transfers</Pill> : <Pill>register only</Pill>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="mt-10">
         <h2 className="h2 mb-3">Interest accruals</h2>
         {d.accruals.length === 0 ? (
           <Empty title="No accrual period computed yet">The arranger publishes a rate-notice commitment and the confidential workflow computes each holder&apos;s share.</Empty>
@@ -79,7 +99,7 @@ export function Portfolio() {
               <thead><tr><th>Period</th><th>Days</th><th className="td-right">Accrued (mUSD)</th><th>Payout</th><th>Commitment</th></tr></thead>
               <tbody>
                 {d.accruals.map((a) => (
-                  <tr key={a.periodId}>
+                  <tr key={`${a.facilityId}-${a.periodId}`}>
                     <td>{a.facilityId} · period {a.periodId}</td>
                     <td className="num">{a.days}</td>
                     <td className="td-right num">{a.amountUnits ? money(a.amountUnits) : "not in snapshot"}</td>

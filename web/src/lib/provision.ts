@@ -62,6 +62,37 @@ export async function provisionInstitution(input: { id: string; name: string; me
   return institution;
 }
 
+/**
+ * Self-service judge desk: a 2-of-3 quorum of the signed-in trader, the venue's automated compliance
+ * co-signer (a server-held P-256 key) and a reserve key minted for this desk (public half only). The
+ * judge signs once in the browser; the venue adds the co-signature after checking the intent, and Privy
+ * executes under the same venue-only policy. The venue holds one key of three, so it cannot execute alone.
+ * Named institutions keep their 2-of-3 human quorums.
+ */
+export async function provisionSelfServiceInstitution(input: { id: string; name: string; email: string; userId: string; cosignerPublicKey: string; reserveSignerPublicKey: string }) {
+  const p = privy();
+  await p.users().setCustomMetadata(input.userId, { custom_metadata: { institution: input.id, role: "trader" } }).catch(() => undefined);
+  const quorum = await p.keyQuorums().create({
+    display_name: `${input.name} quorum (2 of 3)`.slice(0, 50),
+    user_ids: [input.userId],
+    public_keys: [input.cosignerPublicKey, input.reserveSignerPublicKey],
+    authorization_threshold: 2,
+  });
+  const policy = await createVenuePolicy(input.name, quorum.id);
+  const wallet = await p.wallets().create({ chain_type: "ethereum", display_name: `${input.name} desk wallet`.slice(0, 50), owner_id: quorum.id, policy_ids: [policy.id] });
+  const institution: Institution = {
+    id: input.id, name: input.name,
+    members: [{ email: input.email, role: "trader", privyUserId: input.userId }],
+    keyQuorumId: quorum.id, wallet: { id: wallet.id, address: wallet.address }, policyId: policy.id,
+    selfService: true, cosigner: "automated", reserveSigner: { publicKey: input.reserveSignerPublicKey }, createdAt: Date.now(),
+  };
+  writeOrg((o) => {
+    o.institutions = o.institutions.filter((i) => i.id !== input.id);
+    o.institutions.push(institution);
+  });
+  return institution;
+}
+
 /** Wallet policy: the desk may only call the settlement venue contracts on Hedera testnet, never export its key. */
 export async function createVenuePolicy(name: string, ownerId: string) {
   const v = venue();
@@ -81,7 +112,7 @@ export async function createVenuePolicy(name: string, ownerId: string) {
   return privy().policies().create({
     version: "1.0",
     chain_type: "ethereum",
-    name: `${name}: settlement venue only`,
+    name: `${name}: settlement venue only`.slice(0, 50),
     owner_id: ownerId,
     rules: [
       {
@@ -129,12 +160,12 @@ export async function createVenuePolicy(name: string, ownerId: string) {
  * The venue signs its intents with both keys, so this desk can quote, accept and approve unattended.
  * `publicKeys` are the SPKI DER base64 forms of AUTOMATED_DESK_KEYS.
  */
-export async function provisionAutomatedDesk(input: { id: string; name: string; publicKeys: string[] }) {
+export async function provisionAutomatedDesk(input: { id: string; name: string; publicKeys: string[]; registryDemoKeyFingerprint?: string }) {
   const p = privy();
   const quorum = await p.keyQuorums().create({ display_name: `${input.name} automated quorum`.slice(0, 50), public_keys: input.publicKeys, authorization_threshold: 2 });
   const policy = await createVenuePolicy(input.name, quorum.id);
   const wallet = await p.wallets().create({ chain_type: "ethereum", display_name: `${input.name} desk wallet`.slice(0, 50), owner_id: quorum.id, policy_ids: [policy.id] });
-  const institution: Institution = { id: input.id, name: input.name, members: [], keyQuorumId: quorum.id, wallet: { id: wallet.id, address: wallet.address }, policyId: policy.id, automated: true, createdAt: Date.now() };
+  const institution: Institution = { id: input.id, name: input.name, members: [], keyQuorumId: quorum.id, wallet: { id: wallet.id, address: wallet.address }, policyId: policy.id, automated: true, createdAt: Date.now(), ...(input.registryDemoKeyFingerprint ? { registryDemo: { keyFingerprint: input.registryDemoKeyFingerprint } } : {}) };
   writeOrg((o) => {
     o.institutions = o.institutions.filter((i) => i.id !== input.id);
     o.institutions.push(institution);

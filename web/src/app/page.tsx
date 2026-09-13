@@ -10,7 +10,7 @@ export default function Landing() {
   const { ready, authenticated, login } = usePrivy();
   const router = useRouter();
   useEffect(() => {
-    if (ready && authenticated) router.replace("/overview");
+    if (ready && authenticated) router.replace("/institution");
   }, [ready, authenticated, router]);
 
   return (

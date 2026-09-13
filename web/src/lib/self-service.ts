@@ -1,6 +1,7 @@
 import { privy } from "./privy-server";
 import { readOrg, writeOrg, type Institution, type Role } from "./org";
-import { provisionInstitution } from "./provision";
+import { provisionInstitution, provisionSelfServiceInstitution } from "./provision";
+import { automationConfigured, cosignerPublicKey, mintReserveSignerPublicKey } from "./automation-keys";
 import { fund, eligibility, allocate, proposeDeskStep, syncOnboarding, fundUsd, onboardingOf, type HederaOnboarding } from "./onboarding";
 
 /**
@@ -46,15 +47,22 @@ export async function provisionForUser(userId: string): Promise<Institution> {
   const email = await emailOf(userId);
   if (!email) throw new Error("this login has no email address; sign in with email or Google");
   const [local] = email.split("@");
-  const base = local.split("+")[0];
+  const [base, tag] = local.split("+");
+  // "jane.doe" -> "Jane Doe Capital"; a plus-alias keeps its tag so test desks stay distinguishable.
+  const name = `${titleCase(base)}${tag ? ` ${titleCase(tag)}` : ""} Capital`.slice(0, 50);
+  const id = `${slug(tag ? `${base}-${tag}` : base)}-${Math.random().toString(36).slice(2, 6)}`;
+  // Judge desks: a 2-of-3 quorum of the judge, the venue's automated compliance co-signer and a reserve
+  // key, so one human signature executes. Falls back to the three-alias human quorum without automation keys.
+  if (automationConfigured()) {
+    await provisionSelfServiceInstitution({ id, name, email, userId, cosignerPublicKey: cosignerPublicKey(), reserveSignerPublicKey: mintReserveSignerPublicKey() });
+    return readOrg().institutions.find((x) => x.id === id)!;
+  }
   let members = aliasesFor(email);
   const taken = new Set(readOrg().institutions.flatMap((i) => i.members.map((m) => m.email.toLowerCase())));
   if (members.slice(1).some((m) => taken.has(m.email))) {
     const suffix = Math.random().toString(36).slice(2, 6);
     members = aliasesFor(`${base}+${suffix}@${email.split("@")[1]}`).map((m, i) => (i === 0 ? { ...m, email } : m));
   }
-  const name = `${titleCase(base)} Capital`;
-  const id = `${slug(base)}-${Math.random().toString(36).slice(2, 6)}`;
   await provisionInstitution({ id, name, members });
   writeOrg((o) => {
     const i = o.institutions.find((x) => x.id === id)!;
@@ -73,21 +81,16 @@ export async function advanceOnboarding(id: string): Promise<string | null> {
   if (!h.accountId) { const r = await fund(id, FUND_HBAR); return `funded ${r.accountId}`; }
   if (!h.eligibilityTx) { await eligibility(id, true); return "eligible on the register"; }
   if (!h.allocateTx) { await allocate(id, OPENING_PAR); return `allocated ${OPENING_PAR} par`; }
-  // Desk-signed steps: propose whichever is missing (a desk provisioned by hand may have some already).
-  const missing = (["usdAssociate", "allowLoan", "allowUsd"] as const).filter((s) => !h[s] || (!h[s]!.txHash && ["rejected", "expired"].includes(h[s]!.status ?? "")));
-  if (missing.length) {
-    for (const s of missing) await proposeDeskStep(id, s);
-    return `proposed ${missing.join(", ")}`;
-  }
   const done = await syncOnboarding(id);
   const h2 = onboardingOf(readOrg().institutions.find((i) => i.id === id)!);
-  // A desk step whose transaction reverted is proposed again (new intent, new signatures).
-  for (const step of ["usdAssociate", "allowLoan", "allowUsd"] as const) {
-    const st = h2[step];
-    if (!st) continue;
-    const reverted = st.txHash && st.error === "reverted";
-    const unbroadcastable = !st.txHash && st.status === "executed" && st.error && /nonce|already|replacement|underpriced/i.test(st.error);
-    if (reverted || unbroadcastable) { await proposeDeskStep(id, step); return `re-proposed ${step} (${reverted ? "reverted" : "could not be broadcast"})`; }
+  // Propose every missing desk-signed step in one go (consecutive nonces reserved from the wallet's live
+  // intents), so the desk signs all of them in a single sitting. Broadcast still happens one per tick, in
+  // nonce order. Never re-propose on a broadcast error here; the desk recovers a failed step explicitly.
+  const missing = (["usdAssociate", "allowLoan", "allowUsd"] as const).filter((step) => !h2[step]);
+  if (missing.length) {
+    const fresh = missing.length === 3; // no setup intent yet: the first one must take the wallet's current nonce
+    for (const [index, step] of missing.entries()) await proposeDeskStep(id, step, fresh && index === 0);
+    return `proposed ${missing.join(", ")}`;
   }
   if (h2.usdAssociate?.txHash && !h2.usdAssociate.error && !h2.usdKycTx) { await fundUsd(id, OPENING_USD); return `KYC granted and ${OPENING_USD} mock USD funded`; }
   return done.length ? done.join("; ") : null;
@@ -99,13 +102,13 @@ export function onboardingReady(inst: Institution): boolean {
   return Boolean(h.accountId && h.eligibilityTx && h.allocateTx && ok(h.usdAssociate) && ok(h.allowLoan) && ok(h.allowUsd) && h.usdKycTx);
 }
 
-export type OnboardingStep = { key: string; label: string; state: "done" | "active" | "pending"; detail?: string; needsDesk?: boolean; intentId?: string };
+export type OnboardingStep = { key: string; label: string; state: "done" | "active" | "pending"; detail?: string; needsDesk?: boolean; intentId?: string; canRetry?: boolean };
 
 /** Human view of where a desk is in onboarding. */
 export function onboardingSummary(inst: Institution): { ready: boolean; steps: OnboardingStep[] } {
   const h: HederaOnboarding = onboardingOf(inst);
   const desk = (s: HederaOnboarding["usdAssociate"]) => (s?.txHash && !s.error ? "done" : "pending") as "done" | "pending";
-  const sig = (s: HederaOnboarding["usdAssociate"]) => (s ? (s.error === "reverted" ? "reverted on-chain, being proposed again" : `${s.signatures ?? 0}/${s.threshold ?? 2} signatures${s.status && s.status !== "pending" ? ` · ${s.status}` : ""}`) : "not proposed yet");
+  const sig = (s: HederaOnboarding["usdAssociate"]) => (s ? (s.error ?? `${s.signatures ?? 0}/${s.threshold ?? 2} signatures${s.status && s.status !== "pending" ? ` · ${s.status}` : ""}`) : "not proposed yet");
   const steps: OnboardingStep[] = [
     { key: "wallet", label: "Desk wallet created in Privy", state: "done", detail: inst.wallet?.address },
     { key: "account", label: "Hedera account funded", state: h.accountId ? "done" : "pending", detail: h.accountId },
@@ -116,6 +119,11 @@ export function onboardingSummary(inst: Institution): { ready: boolean; steps: O
     { key: "allowUsd", label: "Standing cash authorisation to the engine (desk-signed)", state: desk(h.allowUsd), detail: sig(h.allowUsd), needsDesk: true, intentId: h.allowUsd?.intentId },
     { key: "cash", label: `${Number(OPENING_USD).toLocaleString("en-US")} mock USD funded`, state: h.usdKycTx ? "done" : "pending" },
   ];
+  for (const step of steps) {
+    if (!["usdAssociate", "allowLoan", "allowUsd"].includes(step.key)) continue;
+    const s = h[step.key as "usdAssociate" | "allowLoan" | "allowUsd"];
+    step.canRetry = Boolean(s && !ok(s) && (s.error && s.errorCode !== "PENDING" || ["expired", "rejected"].includes(s.status ?? "")));
+  }
   const first = steps.findIndex((s) => s.state === "pending");
   if (first >= 0) steps[first].state = "active";
   return { ready: onboardingReady(inst), steps };

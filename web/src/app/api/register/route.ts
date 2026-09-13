@@ -1,75 +1,88 @@
-import fs from "node:fs";
-import path from "node:path";
-import { Contract, JsonRpcProvider } from "ethers";
+import { after } from "next/server";
 import { jsonError } from "@/lib/privy-server";
+import { marketTick } from "@/lib/automated-desk";
 import { optionalDesk } from "@/lib/desk-auth";
-import { readOrg } from "@/lib/org";
-import { deskBalances, onboardingOf } from "@/lib/onboarding";
-import { venue } from "@/lib/venue";
-import { HEDERA_RPC } from "@/lib/hedera";
-import { colourFor } from "@/lib/agent";
+import { assetBalances, creditAgreement, holderDirectory, listAssets, readDeployment, type Asset, type HolderEntry } from "@/lib/assets";
+import { notices } from "@/lib/notices";
+import { accrualUnits, evidenceFor, holderPayoutLink, readDistribution, readEvidence, readPayout, sumReleasedAmounts } from "@/lib/register-interest";
 
-export type HolderKind = "desk" | "automated" | "anchor" | "feeder" | "self-service";
+export const maxDuration = 60;
 
 /**
- * The lender register as the arranger keeps it: every holder of the tranche with its par, cash and
- * eligibility, whatever kind of holder it is (Privy desks, the automated desk, the anchor lenders
- * onboarded by script, and retail feeder holders shown as one pass-through line).
+ * The agent bank's loan register: one credit agreement, every asset issued under it, and each asset's
+ * lenders with their par read live from the ATS security. Interest per asset comes from the last
+ * released CRE distribution (or, before a run, the agent's own estimate from the committed notice).
  */
 export async function GET(req: Request) {
   try {
     const d = await optionalDesk(req);
-    const dep = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), "../ops/deployments/testnet.json"), "utf8"));
-    const org = readOrg();
-    const v = venue();
-    const provider = new JsonRpcProvider(HEDERA_RPC, undefined, { staticNetwork: true });
-    const loan = new Contract(v.loanToken, ["function balanceOf(address) view returns (uint256)", "function totalSupply() view returns (uint256)"], provider);
+    after(() => marketTick());
+    const dep = readDeployment();
+    const assets = await listAssets(dep);
+    const directory = holderDirectory(dep, d.institution?.id ?? null);
+    const wallets = [...new Set(directory.flatMap((h) => h.wallets))];
+    const evidence = readEvidence();
+    const allNotices = notices.read().notices;
+    const readAt = Date.now();
 
-    const holders: { id: string; name: string; kind: HolderKind; wallet: string | null; accountId?: string; eligible: boolean; par: string; usd: string; colour: string; mine: boolean; hedera?: unknown }[] = [];
-    for (const i of org.institutions) {
-      const b = i.wallet ? await deskBalances(i.wallet.address).catch(() => null) : null;
-      holders.push({ id: i.id, name: i.name, kind: i.automated ? "automated" : i.selfService ? "self-service" : "desk", wallet: i.wallet?.address ?? null, accountId: onboardingOf(i).accountId, eligible: Boolean((i as { loanEligible?: boolean }).loanEligible), par: b?.par ?? "0", usd: b?.usd ?? "0", colour: "", mine: d.institution?.id === i.id, hedera: onboardingOf(i) });
+    const views = [];
+    for (const asset of assets) {
+      const { balances, totalSupply } = await assetBalances(asset, wallets, dep);
+      const dist = readDistribution(asset.symbol);
+      const payout = readPayout(asset.symbol, dist?.commitment ?? null);
+      const notice = allNotices.filter((n) => n.facilityId === asset.symbol).sort((a, b) => b.periodId - a.periodId)[0] ?? null;
+      const { verified, tamperRejected } = evidenceFor(asset.symbol, dist, evidence);
+      const total = totalSupply ?? BigInt(asset.principal);
+      const holders = directory.map((h) => holderView(h, balances, total, asset, dist, payout, notice)).filter((h) => h.par === null || BigInt(h.par) > 0n);
+      const projectedTotal = !dist && notice ? holders.reduce((sum, h) => sum + BigInt(h.accrual?.amountUnits ?? "0"), 0n).toString() : null;
+      views.push({
+        ...asset,
+        totalSupply: totalSupply === null ? null : totalSupply.toString(),
+        unallocated: balances.get(dep.operator.evmAddress.toLowerCase())?.toString() ?? null,
+        lenders: holders.filter((h) => h.kind !== "agent").length,
+        holders,
+        notice: notice ? { periodId: notice.periodId, periodStart: notice.periodStart, periodEnd: notice.periodEnd, commitment: notice.commitment, hcs: notice.hcs ?? null } : null,
+        accrual: dist ? {
+          kind: "released" as const, periodId: dist.periodId, days: dist.days, totalUnits: dist.totalUnits, commitment: dist.commitment, ranAt: dist.ranAt, verified, tamperRejected,
+          current: notice ? notice.commitment.toLowerCase() === dist.commitment.toLowerCase() : null,
+          paidUnits: payout ? payout.paid.reduce((sum, p) => sum + BigInt(p.amountUnits), 0n).toString() : null, payoutLink: payout?.hashscan ?? null,
+        } : notice ? { kind: "projected" as const, periodId: notice.periodId, days: String(Math.floor((notice.periodEnd - notice.periodStart) / 86400)), totalUnits: projectedTotal, commitment: notice.commitment, ranAt: null, verified: false, tamperRejected: false, current: true, paidUnits: null, payoutLink: null } : null,
+      });
     }
-    for (const a of (dep.institutions ?? []) as { name: string; role: string; evmAddress: string; accountId?: string; loanEligible?: boolean; usdKyc?: boolean }[]) {
-      if (a.role === "outsider") continue;
-      const b = await deskBalances(a.evmAddress).catch(() => null);
-      holders.push({ id: `anchor:${a.evmAddress.toLowerCase()}`, name: a.name, kind: "anchor", wallet: a.evmAddress, accountId: a.accountId, eligible: Boolean(a.loanEligible), par: b?.par ?? "0", usd: b?.usd ?? "0", colour: "", mine: false });
-    }
-    const feeder = dep.feeder as { name?: string; holders?: { evmAddress: string; accountId: string }[] } | undefined;
-    if (feeder?.holders?.length) {
-      let par = 0n;
-      for (const h of feeder.holders) par += (await loan.balanceOf(h.evmAddress).catch(() => 0n)) as bigint;
-      holders.push({ id: "feeder", name: `${feeder.name ?? "Feeder"} pass-through (${feeder.holders.length} retail holders)`, kind: "feeder", wallet: null, eligible: true, par: par.toString(), usd: "0", colour: "", mine: false });
-    }
-    holders.sort((a, b) => Number(BigInt(b.par) - BigInt(a.par)));
-    holders.forEach((h, i) => (h.colour = colourFor(i)));
-
-    // Interest per holder from the latest released distribution and payout (feeder line aggregated).
-    const evidenceDir = path.resolve(process.cwd(), "../cre/evidence");
-    const readJson = <T,>(f: string): T | null => (fs.existsSync(f) ? (JSON.parse(fs.readFileSync(f, "utf8")) as T) : null);
-    const dist = readJson<{ facilityId: string; periodId: number; days: string; commitment: string; distribution: { holder: string; amountUnits: string }[]; totalUnits: string }>(path.join(evidenceDir, "distribution.json"));
-    const payout = readJson<{ commitment: string; hashscan: string; paid: { holder: string; amountUnits: string }[]; skipped: { holder: string; reason: string }[] }>(path.join(evidenceDir, "payout.json"));
-    const paidFor = payout && dist && payout.commitment.toLowerCase() === dist.commitment.toLowerCase() ? payout : null;
-    const feederSet = new Set((feeder?.holders ?? []).map((h) => h.evmAddress.toLowerCase()));
-    const accrualOf = (wallet: string | null, kind: HolderKind) => {
-      if (!dist) return null;
-      if (kind === "feeder") {
-        const due = dist.distribution.filter((x) => feederSet.has(x.holder.toLowerCase())).reduce((a, x) => a + BigInt(x.amountUnits), 0n);
-        const paid = (paidFor?.paid ?? []).filter((x) => feederSet.has(x.holder.toLowerCase())).reduce((a, x) => a + BigInt(x.amountUnits), 0n);
-        return { periodId: dist.periodId, days: dist.days, amountUnits: due.toString(), paidUnits: paid.toString(), skipped: null, link: paidFor?.hashscan ?? null };
-      }
-      if (!wallet) return null;
-      const w = wallet.toLowerCase();
-      const due = dist.distribution.find((x) => x.holder.toLowerCase() === w)?.amountUnits ?? null;
-      const paid = paidFor?.paid.find((x) => x.holder.toLowerCase() === w)?.amountUnits ?? null;
-      const skipped = paidFor?.skipped.find((x) => x.holder.toLowerCase() === w)?.reason ?? null;
-      return { periodId: dist.periodId, days: dist.days, amountUnits: due, paidUnits: paid, skipped, link: paidFor?.hashscan ?? null };
-    };
-    const enriched = holders.map((h) => ({ ...h, accrual: accrualOf(h.wallet, h.kind) }));
-    const totalSupply = ((await loan.totalSupply().catch(() => 0n)) as bigint).toString();
-    const outsider = ((dep.institutions ?? []) as { role: string; name: string; evmAddress: string; accountId?: string }[]).find((x) => x.role === "outsider") ?? null;
-    return Response.json({ facility: dep.loanToken, mockUsd: dep.mockUsd, engine: dep.settlementEngine, topics: dep.topics, operator: dep.operator, registerSnapshot: dep.registerSnapshot ?? null, totalSupply, holders: enriched, period: dist ? { periodId: dist.periodId, days: dist.days, totalUnits: dist.totalUnits } : null, outsider, me: { institution: d.institution?.id ?? null } });
+    const principal = views.reduce((sum, a) => sum + BigInt(a.totalSupply ?? a.principal), 0n).toString();
+    const lenders = new Set(views.flatMap((a) => a.holders.filter((h) => h.kind !== "agent").map((h) => h.id))).size;
+    return Response.json({
+      agreement: { ...creditAgreement(dep), operator: dep.operator, engine: dep.settlementEngine, topics: dep.topics, mockUsd: dep.mockUsd },
+      totals: { principal, assets: views.length, lenders },
+      assets: views,
+      me: { institution: d.institution?.id ?? null, userId: d.userId },
+      readAt,
+    }, { headers: { "cache-control": "no-store" } });
   } catch (e) {
     return jsonError(e);
   }
+}
+
+type Dist = ReturnType<typeof readDistribution>;
+type Payout = ReturnType<typeof readPayout>;
+type Notice = { periodId: number; periodStart: number; periodEnd: number; rateBps: number; dayCountBasis: number } | null;
+
+function holderView(h: HolderEntry, balances: Map<string, bigint | null>, total: bigint, asset: Asset, dist: Dist, payout: Payout, notice: Notice) {
+  const reads = h.wallets.map((w) => balances.get(w) ?? null);
+  const par = reads.some((b) => b === null) ? null : reads.reduce<bigint>((sum, b) => sum + (b ?? 0n), 0n);
+  const share = par !== null && total > 0n ? Number((par * 10_000n) / total) / 100 : null;
+  let accrual: { kind: "released" | "projected"; periodId: number; days: string; amountUnits: string | null; paidUnits: string | null; skipped: string | null; link: string | null } | null = null;
+  const mine = new Set(h.wallets);
+  if (dist) {
+    const due = sumReleasedAmounts(dist.distribution.filter((x) => mine.has(x.holder.toLowerCase())));
+    const paid = sumReleasedAmounts((payout?.paid ?? []).filter((x) => mine.has(x.holder.toLowerCase())));
+    const skipped = payout?.skipped.find((x) => mine.has(x.holder.toLowerCase()))?.reason ?? null;
+    const link = h.wallet ? holderPayoutLink(payout, h.wallet) : paid && BigInt(paid) > 0n ? payout?.hashscan ?? null : null;
+    accrual = { kind: "released", periodId: dist.periodId, days: dist.days, amountUnits: due, paidUnits: paid, skipped, link };
+  } else if (notice && par !== null) {
+    const days = Math.floor((notice.periodEnd - notice.periodStart) / 86400);
+    accrual = { kind: "projected", periodId: notice.periodId, days: String(days), amountUnits: accrualUnits(par, notice.rateBps, days, notice.dayCountBasis).toString(), paidUnits: null, skipped: null, link: null };
+  }
+  const allocation = asset.allocations.find((a) => h.wallets.includes(a.evmAddress));
+  return { id: h.id, name: h.name, kind: h.kind, wallet: h.wallet, accountId: h.accountId, colour: h.colour, mine: h.mine, par: par === null ? null : par.toString(), share, allocatedPar: allocation?.par ?? null, allocationTx: allocation?.issueTx ?? null, accrual };
 }

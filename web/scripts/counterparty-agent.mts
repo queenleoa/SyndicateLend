@@ -11,7 +11,6 @@
 import { config } from "dotenv";
 config({ path: new URL("../../.env", import.meta.url).pathname });
 const { hydrate, flush } = await import("../src/lib/store");
-await hydrate();
 
 const args = new Map<string, string>();
 for (let i = 2; i < process.argv.length; i++) {
@@ -29,6 +28,7 @@ if (!(basePrice > 0 && basePrice < 200)) throw new Error("--price must be a pric
 const [{ loadRfqs, newId }, { publish }, { readOrg }] = await Promise.all([
   import("../src/lib/rfq"), import("../src/lib/hcs"), import("../src/lib/org"),
 ]);
+await hydrate();
 const institution = readOrg().institutions.find((i) => i.id === institutionId);
 if (!institution?.wallet) throw new Error(`institution '${institutionId}' is not provisioned with a Privy desk wallet`);
 
@@ -56,8 +56,10 @@ async function quoteOpenRfqs() {
     });
     console.log(`[counterparty] quoted ${quoteId} @ ${basePrice.toFixed(2)} · HCS sequence ${receipt.sequence} · ${receipt.status}`);
   }
-  if (once) await flush();
-process.exit(0);
+  if (once) {
+    await flush();
+    process.exit(0);
+  }
 }
 
 await quoteOpenRfqs();

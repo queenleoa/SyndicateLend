@@ -9,6 +9,17 @@ import type { TradeView } from "./trade-lifecycle";
 type Rfq = { rfqId: string; side: "sell" | "buy"; par: string; institution: string; status: string; quotes: { quoteId: string; institution: string; price: string; settleAt: number }[]; consensusAt: string; sequence: number };
 type Rfqs = { me: { institution: string; role: string }; names: Record<string, string>; topic: string; topicLink: string; rfqs: Rfq[] };
 type Register = { facility: { name: string; symbol: string; tokenId: string; evmAddress: string; units: string; maturity: number }; engine: { address: string }; mockUsd: { tokenId: string }; topics: { notices: string }; holders: { id: string; name: string; eligible: boolean; par: string; usd: string; colour: string }[] };
+/** The register API is organised by credit agreement and asset; the execution room shows the tradeable tranche. */
+type RegisterApi = { agreement: { engine: { address: string }; mockUsd: { tokenId: string }; topics: { notices: string } }; assets: { symbol: string; name: string; tokenId: string | null; evmAddress: string; principal: string; totalSupply: string | null; maturity: number; tradeable: boolean; holders: { id: string; name: string; kind: string; par: string | null; colour: string }[] }[] };
+function tradeableAsset(r: RegisterApi): Register {
+  const a = r.assets.find((x) => x.tradeable) ?? r.assets[0];
+  return {
+    facility: { name: a.name, symbol: a.symbol, tokenId: a.tokenId ?? a.evmAddress, evmAddress: a.evmAddress, units: a.totalSupply ?? a.principal, maturity: a.maturity },
+    engine: r.agreement.engine, mockUsd: r.agreement.mockUsd, topics: r.agreement.topics,
+    // Anyone holding the asset passed its allowlist and KYC checks; the agent bank's own unallocated line is not a lender.
+    holders: a.holders.filter((h) => h.kind !== "agent" && h.par !== null && BigInt(h.par) > 0n).map((h) => ({ id: h.id, name: h.name, eligible: true, par: h.par!, usd: "0", colour: h.colour })),
+  };
+}
 type Trades = { trades: TradeView[] };
 type Approvals = { intents: { intent_id: string; status: string; authorization_details: { threshold: number; members: { signed_at: number | null }[] }[] }[] };
 
@@ -24,12 +35,12 @@ export function ExecutionRoom() {
   const load = useCallback(async () => {
     const results = await Promise.allSettled([
       api("/api/rfqs") as Promise<Rfqs>,
-      api("/api/register") as Promise<Register>,
+      api("/api/register") as Promise<RegisterApi>,
       api("/api/trades?sync=1") as Promise<Trades>,
       api("/api/approvals") as Promise<Approvals>,
     ]);
     if (results[0].status === "fulfilled") setRfqs(results[0].value);
-    if (results[1].status === "fulfilled") setRegister(results[1].value);
+    if (results[1].status === "fulfilled" && results[1].value.assets?.length) setRegister(tradeableAsset(results[1].value));
     if (results[2].status === "fulfilled") setTrades(results[2].value.trades);
     if (results[3].status === "fulfilled") setApprovals(results[3].value);
     const firstFailure = results.find((r): r is PromiseRejectedResult => r.status === "rejected");

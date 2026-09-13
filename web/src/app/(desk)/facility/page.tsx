@@ -1,5 +1,6 @@
-import { Facility } from "@/components/facility";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "ATS configuration" };
-
-export default function FacilityPage() { return <Facility />; }
+/** The loan configuration now lives on the register, per asset. */
+export default function FacilityPage() {
+  redirect("/register");
+}

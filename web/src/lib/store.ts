@@ -20,6 +20,8 @@ export const redisBacked = Boolean(REDIS_URL && REDIS_TOKEN);
 const cache = new Map<string, unknown>();
 const hydratedAt = new Map<string, number>();
 const names = new Set<string>();
+const defaults = new Map<string, unknown>();
+const persistenceTails = new Map<string, Promise<unknown>>();
 let pending: Promise<unknown>[] = [];
 
 async function redis(cmd: string[]): Promise<unknown> {
@@ -59,15 +61,42 @@ export async function flush(): Promise<void> {
   await Promise.allSettled(p);
 }
 
+/** Hosted transaction workflows must not silently fall back to an old file/cache on cold starts. */
+export async function hydrateStrict(): Promise<void> {
+  if (!redisBacked) throw new Error("Durable Redis storage is required for this hosted workflow.");
+  const registered = [...names];
+  if (!registered.length) return;
+  const values = await redis(["MGET", ...registered.map((name) => `${NS}:${name}`)]) as (string | null)[];
+  if (!Array.isArray(values) || values.length !== registered.length) throw new Error("Durable storage returned an incomplete snapshot.");
+  registered.forEach((name, index) => {
+    cache.set(name, values[index] === null ? structuredClone(defaults.get(name)) : JSON.parse(values[index]!));
+    hydratedAt.set(name, Date.now());
+  });
+}
+
+/** Unlike legacy flush(), propagate persistence errors before acknowledging a hosted operation. */
+export async function flushStrict(): Promise<void> {
+  if (!redisBacked) throw new Error("Durable Redis storage is required for this hosted workflow.");
+  const work = pending;
+  pending = [];
+  const results = await Promise.allSettled(work);
+  if (results.some((result) => result.status === "rejected")) throw new Error("Durable storage could not confirm the completed operation. Operator review is required before retrying.");
+}
+
 function persist(name: string, value: unknown) {
   if (!redisBacked) return;
-  const task = redis(["SET", `${NS}:${name}`, JSON.stringify(value)]).catch((e) => console.error("[store] persist failed", name, (e as Error).message));
+  const serialized = JSON.stringify(value);
+  // Keep multiple snapshots of one document in write order within this process.
+  const task = (persistenceTails.get(name) ?? Promise.resolve()).catch(() => undefined).then(() => redis(["SET", `${NS}:${name}`, serialized]));
+  persistenceTails.set(name, task);
+  // Attach a rejection handler immediately, but retain the original rejecting promise for flushStrict.
+  void task.catch((e) => console.error("[store] persist failed", name, (e as Error).message));
   pending.push(task);
   // Inside a Next request, keep the function alive until the write lands; elsewhere the promise is awaited by flush().
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { after } = require("next/server") as { after?: (fn: () => Promise<unknown>) => void };
-    after?.(() => task);
+    after?.(() => task.catch(() => undefined));
   } catch {
     /* not in a request scope */
   }
@@ -75,6 +104,7 @@ function persist(name: string, value: unknown) {
 
 export function jsonStore<T>(name: string, empty: T) {
   names.add(name);
+  defaults.set(name, empty);
   return {
     read(): T {
       if (redisBacked) {

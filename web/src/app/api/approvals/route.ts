@@ -1,7 +1,14 @@
-import { requireSession, jsonError, HttpError } from "@/lib/privy-server";
+import { after } from "next/server";
+import { requireSession, jsonError, HttpError, privy } from "@/lib/privy-server";
+import { marketTick } from "@/lib/automated-desk";
 import { findMember, readOrg } from "@/lib/org";
 import { listWalletIntents, proposeSignTransaction } from "@/lib/approvals";
 import { venue } from "@/lib/venue";
+import { onboardingOf } from "@/lib/onboarding";
+import { onboardingSummary } from "@/lib/self-service";
+import { setupIntentMap, supersededSetupIntentIds } from "@/lib/approval-notifications";
+
+export const maxDuration = 60;
 
 function requireDesk(userId: string) {
   const hit = findMember(readOrg(), userId);
@@ -13,10 +20,21 @@ function requireDesk(userId: string) {
 export async function GET(req: Request) {
   try {
     const s = await requireSession(req);
+    after(() => marketTick());
     if (!findMember(readOrg(), s.userId)) return Response.json({ observer: true, institution: null, me: { userId: s.userId, role: "observer" }, intents: [] });
     const { institution, member } = requireDesk(s.userId);
-    const intents = await listWalletIntents(institution.wallet!.id);
-    return Response.json({ institution: { id: institution.id, name: institution.name, wallet: institution.wallet, members: institution.members.map((m) => ({ email: m.email, role: m.role, privyUserId: m.privyUserId })) }, me: { userId: s.userId, role: member.role }, intents });
+    const [intents, quorum] = await Promise.all([
+      listWalletIntents(institution.wallet!.id),
+      institution.keyQuorumId ? privy().keyQuorums().get(institution.keyQuorumId).catch(() => null) : null,
+    ]);
+    const v = venue();
+    const superseded = supersededSetupIntentIds(onboardingOf(institution));
+    return Response.json({
+      institution: { id: institution.id, name: institution.name, cosigner: institution.cosigner ?? null, wallet: institution.wallet, keyQuorumId: institution.keyQuorumId ?? null, policyId: institution.policyId ?? null, quorum: quorum ? { threshold: quorum.authorization_threshold, userIds: quorum.user_ids ?? [], keys: quorum.authorization_keys?.length ?? 0 } : null, reserveSigner: institution.reserveSigner?.publicKey ?? null, members: institution.members.map((m) => ({ email: m.email, role: m.role, privyUserId: m.privyUserId })) },
+      me: { userId: s.userId, role: member.role }, intents: intents.map((intent) => ({ ...intent, superseded: superseded.has(intent.intent_id) })),
+      onboarding: onboardingSummary(institution), setupIntents: setupIntentMap(onboardingOf(institution)),
+      venue: { engine: v.settlementEngine, loan: v.loanToken, usd: v.mockUsd },
+    }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (e) {
     return jsonError(e);
   }

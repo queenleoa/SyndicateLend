@@ -1,10 +1,10 @@
 import { requireSession, jsonError, HttpError } from "@/lib/privy-server";
 import { listInstitutions, provisionInstitution } from "@/lib/provision";
+import { isPlatformAdmin } from "@/lib/agent";
 
 /** Platform administration: only the operator allow-list may provision institutions. */
 function requireOperator(userId: string) {
-  const allowed = (process.env.PLATFORM_ADMIN_PRIVY_USER_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  if (allowed.length && !allowed.includes(userId)) throw new HttpError(403, "not a platform administrator");
+  if (!isPlatformAdmin(userId)) throw new HttpError(403, "not a platform administrator");
 }
 
 export async function GET(req: Request) {

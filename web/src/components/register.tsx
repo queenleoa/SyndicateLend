@@ -1,140 +1,173 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 import { useApi } from "@/lib/use-me";
-import { PageHeader, Receipt, HASHSCAN, par, money, short, Pill } from "./ui";
+import { HASHSCAN, par, money, short, when } from "./ui";
+import s from "./register.module.css";
 
-type Accrual = { periodId: number; days: string; amountUnits: string | null; paidUnits: string | null; skipped: string | null; link: string | null } | null;
-type Holder = { id: string; name: string; kind: "desk" | "automated" | "anchor" | "feeder" | "self-service"; wallet: string | null; accountId?: string; eligible: boolean; par: string; usd: string; colour: string; mine: boolean; accrual: Accrual; hedera?: { allowLoan?: { txHash?: string }; allowUsd?: { txHash?: string }; usdKycTx?: string } };
-type Payload = {
-  facility: { name: string; symbol: string; isin: string; tokenId: string; evmAddress: string; units: string; maturity: number; maxSupply?: string; documentRef: string };
-  mockUsd: { tokenId: string; evmAddress: string; symbol: string };
-  engine: { address: string };
-  topics: { rfq: string; notices: string };
-  operator: { accountId: string };
-  registerSnapshot: { address: string } | null;
-  totalSupply: string;
-  holders: Holder[];
-  period: { periodId: number; days: string; totalUnits: string } | null;
+type HolderAccrual = { kind: "released" | "projected"; periodId: number; days: string; amountUnits: string | null; paidUnits: string | null; skipped: string | null; link: string | null };
+export type RegisterHolder = { id: string; name: string; kind: "desk" | "automated" | "anchor" | "feeder" | "self-service" | "agent"; wallet: string | null; accountId?: string; colour: string; mine: boolean; par: string | null; share: number | null; allocatedPar: string | null; allocationTx: string | null; accrual: HolderAccrual | null };
+type AssetAccrual = { kind: "released" | "projected"; periodId: number; days: string; totalUnits: string | null; commitment: string; ranAt: number | null; verified: boolean; tamperRejected: boolean; current: boolean | null; paidUnits: string | null; payoutLink: string | null };
+export type RegisterAsset = {
+  symbol: string; name: string; isin: string; evmAddress: string; tokenId: string | null; principal: string; maturity: number; facilityType: string; documentRef: string; createTx: string | null; createdAt: number; source: "issued" | "prepared"; issuedBy?: string; tradeable: boolean;
+  totalSupply: string | null; unallocated: string | null; lenders: number; holders: RegisterHolder[];
+  notice: { periodId: number; periodStart: number; periodEnd: number; commitment: string; hcs: { sequence: number; transactionId: string } | null } | null;
+  accrual: AssetAccrual | null;
+};
+export type RegisterPayload = {
+  agreement: { name: string; borrower: string; agentBank: string; dated: string; documentRef: string; governingLaw: string; operator: { accountId: string; evmAddress: string }; engine: { address: string }; topics: { rfq: string; notices: string } };
+  totals: { principal: string; assets: number; lenders: number };
+  assets: RegisterAsset[];
+  me: { institution: string | null; userId: string };
+  readAt: number;
 };
 
-const KIND: Record<Holder["kind"], string> = { desk: "Institutional desk (Privy 2-of-3 quorum)", automated: "Automated liquidity desk (server-held quorum)", anchor: "Anchor lender (onboarded by the agent)", feeder: "Retail pass-through (feeder holders)", "self-service": "Institutional desk (Privy 2-of-3 quorum)" };
+const KIND: Record<RegisterHolder["kind"], string> = { desk: "Institutional lender", automated: "Automated demo institution", anchor: "Syndicate lender", feeder: "Retail feeder holders", "self-service": "Institutional lender", agent: "Agent bank" };
+const usd = (value: string | null | undefined) => value == null ? "—" : `$${par(value)}`;
+const interest = (value: string | null | undefined) => value == null ? "—" : `$${money(value)}`;
+const maturity = (t: number) => new Date(t * 1000).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
+const txLink = (id: string) => `${HASHSCAN}/transaction/${id.replace(/^(0\.0\.\d+)@(\d+)\.(\d+)$/, "$1-$2-$3")}`;
 
 export function Register() {
   const api = useApi();
-  const [d, setD] = useState<Payload | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
-  useEffect(() => {
-    api("/api/register").then(setD).catch((e) => setErr(e.message));
-    const t = setInterval(() => api("/api/register").then(setD).catch(() => {}), 15_000);
-    return () => clearInterval(t);
+  const params = useSearchParams();
+  const [data, setData] = useState<RegisterPayload | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [selected, setSelected] = useState<string | null>(params.get("asset"));
+  const [changes, setChanges] = useState<string[]>([]);
+  const previous = useRef<RegisterPayload | null>(null);
+  const loading = useRef(false);
+  const alive = useRef(true);
+
+  const load = useCallback(async () => {
+    if (loading.current) return;
+    loading.current = true;
+    setBusy(true);
+    try {
+      const next: RegisterPayload = await api("/api/register", { cache: "no-store" });
+      if (!alive.current) return;
+      const updated = next.assets.flatMap((a) => a.holders.filter((h) => {
+        const before = previous.current?.assets.find((x) => x.symbol === a.symbol)?.holders.find((x) => x.id === h.id);
+        return before && before.par !== null && h.par !== null && before.par !== h.par;
+      }).map((h) => `${a.symbol}:${h.id}`));
+      if (updated.length) setChanges(updated);
+      previous.current = next;
+      setData(next);
+      setError(null);
+    } catch (e) { if (alive.current) setError((e as Error).message); }
+    finally { loading.current = false; if (alive.current) setBusy(false); }
   }, [api]);
-  if (err) return <p className="text-sm text-bad">{err}</p>;
-  if (!d) return <div className="room-loading"><i /><span>Reading the register from Hedera…</span></div>;
-  const f = d.facility;
-  const total = d.holders.reduce((a, h) => a + Number(h.par), 0) || 1;
-  const withPar = d.holders.filter((h) => Number(h.par) > 0);
-  const max = Math.max(...withPar.map((h) => Number(h.par)), 1);
-  const sel = d.holders.find((h) => h.id === selected) ?? withPar[0] ?? null;
-  return (
-    <div>
-      <PageHeader
-        title="Lender register"
-        sub={<>{f.symbol} · click a bar for the institution and its interest</>}
-        right={<Link className="btn btn-primary" href="/assignments">Assignments awaiting consent →</Link>}
-      />
 
-      <section className="register-hero">
-        <div className="register-hero-head">
-          <div><span className="label">Tranche outstanding</span><strong>${par(d.totalSupply)}</strong><small>1 token = US$1 of par · maturity {new Date(f.maturity * 1000).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}</small></div>
-          <div><span className="label">Holders</span><strong>{withPar.length}</strong><small>{d.holders.filter((h) => h.eligible).length} eligible institutions on the whitelist</small></div>
-          <div><span className="label">Latest interest period</span><strong>{d.period ? `${money(d.period.totalUnits)} mUSD` : "—"}</strong><small>{d.period ? `period ${d.period.periodId} · ${d.period.days} days · computed confidentially` : "no accrual computed yet"}</small></div>
-        </div>
+  useEffect(() => {
+    alive.current = true;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => { await load(); if (!stopped) timer = setTimeout(poll, 15_000); };
+    void poll();
+    return () => { stopped = true; alive.current = false; clearTimeout(timer); };
+  }, [load]);
+  useEffect(() => { if (!changes.length) return; const timer = setTimeout(() => setChanges([]), 20_000); return () => clearTimeout(timer); }, [changes]);
 
-        <div className="register-layout">
-          <div>
-            <div className="register-chart" role="list" aria-label="Par by holder">
-              {withPar.map((h) => (
-                <button key={h.id} type="button" role="listitem" className={`register-col ${sel?.id === h.id ? "selected" : ""} ${sel && sel.id !== h.id ? "dim" : ""}`} style={{ ["--c" as string]: h.colour }} onClick={() => setSelected(h.id)} aria-label={`${h.name}: ${par(h.par)} par`}>
-                  <span className="amt">${par(h.par)}</span>
-                  <div className="bar" style={{ height: `${Math.max(2, (Number(h.par) / max) * 100)}%` }} />
-                </button>
-              ))}
-            </div>
-            <div className="register-labels">
-              {withPar.map((h) => (
-                <div key={h.id}><strong>{h.name.length > 26 ? h.name.slice(0, 24) + "…" : h.name}</strong>{((Number(h.par) / total) * 100).toFixed(1)}%{h.mine ? " · you" : ""}</div>
-              ))}
-            </div>
-          </div>
+  if (!data) return <div className={s.loading} role="status"><h1>Loan register</h1><p>{error ?? "Reading the register from Hedera…"}</p>{error && <button onClick={load} disabled={busy}>Retry</button>}</div>;
 
-          {sel ? (
-            <aside className="register-detail" style={{ ["--c" as string]: sel.colour }}>
-              <div>
-                <h3>{sel.name}{sel.mine && <span className="text-ink-muted font-normal"> · your desk</span>}</h3>
-                <div className="kind">{KIND[sel.kind]}</div>
-              </div>
-              <div className="detail-grid">
-                <div><span>Par held</span><strong>${par(sel.par)}</strong><small>{((Number(sel.par) / total) * 100).toFixed(1)}% of the tranche</small></div>
-                <div><span>Cash</span><strong>${money(sel.usd)}</strong><small>mock USD on Hedera</small></div>
-              </div>
-              <div className="detail-section">
-                <h4>Eligibility and settlement readiness</h4>
-                <div className="detail-row"><dt>Register whitelist + KYC</dt><dd>{sel.eligible ? <Pill tone="ok">eligible</Pill> : <Pill tone="bad">not eligible</Pill>}</dd></div>
-                {sel.hedera && sel.kind !== "anchor" && sel.kind !== "feeder" && (
-                  <>
-                    <div className="detail-row"><dt>Loan authorisation to engine</dt><dd>{sel.hedera.allowLoan?.txHash ? <Pill tone="ok">standing</Pill> : <Pill tone="warn">not set</Pill>}</dd></div>
-                    <div className="detail-row"><dt>Cash authorisation to engine</dt><dd>{sel.hedera.allowUsd?.txHash ? <Pill tone="ok">standing</Pill> : <Pill tone="warn">not set</Pill>}</dd></div>
-                    <div className="detail-row"><dt>Mock USD KYC</dt><dd>{sel.hedera.usdKycTx ? <Pill tone="ok">granted</Pill> : <Pill tone="warn">pending</Pill>}</dd></div>
-                  </>
-                )}
-                {sel.wallet && <div className="detail-row"><dt>Wallet</dt><dd><Receipt href={`${HASHSCAN}/account/${sel.wallet}`}>{short(sel.wallet, 8, 6)}</Receipt></dd></div>}
-                {sel.accountId && <div className="detail-row"><dt>Hedera account</dt><dd>{sel.accountId}</dd></div>}
-              </div>
-              <div className="detail-section">
-                <h4>Interest{sel.accrual ? ` · period ${sel.accrual.periodId} (${sel.accrual.days} days)` : ""}</h4>
-                {sel.accrual ? (
-                  <>
-                    <div className="detail-row"><dt>Accrued</dt><dd><strong>{sel.accrual.amountUnits ? `${money(sel.accrual.amountUnits)} mUSD` : "not in snapshot"}</strong></dd></div>
-                    <div className="detail-row"><dt>Paid</dt><dd>{sel.accrual.paidUnits && sel.accrual.paidUnits !== "0" ? <span className="flex items-center gap-2 justify-end"><Pill tone="ok">{money(sel.accrual.paidUnits)} mUSD</Pill>{sel.accrual.link && <Receipt href={sel.accrual.link}>HTS</Receipt>}</span> : sel.accrual.skipped ? <Pill tone="warn">{sel.accrual.skipped}</Pill> : sel.accrual.amountUnits && sel.accrual.amountUnits !== "0" ? <Pill tone="warn">not paid yet</Pill> : <Pill>nothing due</Pill>}</dd></div>
-                    <p className="text-xs text-ink-muted">Computed inside the confidential workflow from the private rate notice; only the amount is released.</p>
-                  </>
-                ) : (
-                  <p className="text-xs text-ink-muted">No accrual period computed yet.</p>
-                )}
-              </div>
-            </aside>
-          ) : (
-            <aside className="register-detail"><p className="register-empty">No holder has a position yet.</p></aside>
-          )}
-        </div>
+  const { agreement, assets, totals } = data;
+  const asset = assets.find((a) => a.symbol === selected) ?? assets[0];
+  const released = assets.filter((a) => a.accrual?.kind === "released");
+  const releasedTotal = released.reduce((sum, a) => sum + BigInt(a.accrual?.totalUnits ?? "0"), 0n);
+  const isNew = (a: RegisterAsset) => a.source === "issued" && data.readAt - a.createdAt < 6 * 3600_000; // server read time keeps render pure
+  const funded = asset ? asset.holders.filter((h) => h.par !== null && BigInt(h.par) > 0n) : [];
+  const total = asset ? Number(asset.totalSupply ?? asset.principal) : 0;
+
+  return <div className={s.page}>
+    <header className={s.heading}>
+      <div>
+        <span className={s.eyebrow}>Agent bank · Loan register</span>
+        <h1>{agreement.name}</h1>
+        <p>Borrower <strong>{agreement.borrower}</strong> · Agent bank <strong>{agreement.agentBank}</strong> · Dated {agreement.dated}</p>
+      </div>
+      <div className={s.actions}><button onClick={load} disabled={busy}>{busy ? "Refreshing…" : "Refresh"}</button><Link href="/issue" className={s.primary}>Issue a new asset →</Link></div>
+    </header>
+    {error && <div className={s.warning} role="alert">Refresh delayed. Showing the last successful read. {error}</div>}
+    {changes.length > 0 && <div className={s.update} role="status">Register updated: {changes.length} lender position{changes.length > 1 ? "s" : ""} changed on Hedera.</div>}
+
+    <section className={s.totals} aria-label="Credit agreement totals">
+      <div><div className={s.totalLabel}><Image src="/integrations/hedera.svg" alt="Hedera" width={112} height={31} /><span>Principal on register</span></div><strong>{usd(totals.principal)}</strong><span>{totals.assets} assets · 1 token = $1 par · read live from ATS</span></div>
+      <div><div className={s.totalLabel}><span>Syndicate</span></div><strong>{totals.lenders} lenders</strong><span>Every holder of every asset, KYC-checked on-chain</span></div>
+      <div><div className={s.totalLabel}><Image src="/integrations/chainlink.svg" alt="Chainlink CRE" width={125} height={32} /><span>Interest released</span></div><strong>{released.length ? interest(releasedTotal.toString()) : "Pending"}</strong><span>{released.length ? `${released.length} of ${assets.length} assets calculated in the CRE enclave` : "Run the confidential calculation to release amounts"}</span></div>
+    </section>
+
+    <section className={s.assets} aria-label="Assets issued under the agreement">
+      <div className={s.panelHead}><div><h2>Assets issued under this agreement</h2><p>Each asset is one facility or tranche of the syndicated loan. Lender pars are token balances on the asset.</p></div><span>{data.readAt ? `Read ${new Date(data.readAt).toLocaleTimeString("en-GB")}` : ""}</span></div>
+      <div className={s.tableWrap}><table className={s.table}>
+        <thead><tr><th>Asset</th><th>Facility</th><th>Principal</th><th>Lenders</th><th>Maturity</th><th>Interest · latest period</th></tr></thead>
+        <tbody>{assets.map((a) => <tr key={a.symbol} data-selected={asset?.symbol === a.symbol} onClick={() => setSelected(a.symbol)}>
+          <td><button className={s.assetButton} onClick={() => setSelected(a.symbol)} aria-pressed={asset?.symbol === a.symbol}><span className={s.symbol}>{a.symbol}</span><span className={s.assetName}>{a.name}</span>{isNew(a) && <em className={s.new}>{a.issuedBy === data.me.userId ? "Just issued by you" : "New"}</em>}</button></td>
+          <td>{a.facilityType}</td>
+          <td><strong>{usd(a.totalSupply ?? a.principal)}</strong></td>
+          <td><strong>{a.lenders}</strong></td>
+          <td>{maturity(a.maturity)}</td>
+          <td>{a.accrual ? <><strong>{interest(a.accrual.totalUnits)}</strong><span>{a.accrual.kind === "released" ? `Period ${a.accrual.periodId} · CRE released${a.accrual.paidUnits ? " · paid" : ""}` : `Period ${a.accrual.periodId} · agent estimate, CRE run pending`}</span></> : <span>No rate notice yet</span>}</td>
+        </tr>)}</tbody>
+      </table></div>
+    </section>
+
+    {asset && <div className={s.grid}>
+      <section className={s.ownership}>
+        <div className={s.panelHead}><div><h2>Lender register · {asset.symbol}</h2><p>{asset.name}</p></div><span>{usd(asset.totalSupply ?? asset.principal)} issued</span></div>
+        {funded.length > 0 && total > 0 && <div className={s.allocation} aria-label="Share of issued principal">{funded.map((h) => <span key={h.id} style={{ flexGrow: Number(h.par), background: h.colour }} title={`${h.name} · ${h.share ?? 0}%`} />)}</div>}
+        <div className={s.tableWrap}><table className={s.table}>
+          <thead><tr><th>Lender</th><th>Par · share</th><th>Interest · period {asset.accrual?.periodId ?? "—"}</th></tr></thead>
+          <tbody>{funded.map((h) => <tr key={h.id} className={changes.includes(`${asset.symbol}:${h.id}`) ? s.changed : ""}>
+            <td><div className={s.holder}><i style={{ background: h.colour }} /><div><strong>{h.name}</strong><span>{KIND[h.kind]}{h.mine ? " · your institution" : ""}{h.wallet && <> · <a href={`${HASHSCAN}/account/${h.wallet}`} target="_blank" rel="noreferrer">{h.accountId ?? short(h.wallet)} ↗</a></>}</span></div></div></td>
+            <td><strong>{usd(h.par)}</strong><span>{h.share !== null ? `${h.share.toFixed(2)}%` : "—"}{h.allocationTx && <> · <a href={txLink(h.allocationTx)} target="_blank" rel="noreferrer">allocation ↗</a></>}</span></td>
+            <td><strong>{interest(h.accrual?.amountUnits)}</strong><span>{!h.accrual ? "No calculation yet" : h.accrual.kind === "projected" ? "Agent estimate · CRE pending" : h.accrual.paidUnits && BigInt(h.accrual.paidUnits) > 0n ? <>Paid in mUSD{h.accrual.link && <> · <a href={h.accrual.link} target="_blank" rel="noreferrer">receipt ↗</a></>}</> : h.accrual.skipped ?? "CRE released · not yet paid"}</span></td>
+          </tr>)}</tbody>
+        </table>{funded.length === 0 && <p className={s.empty}>{asset.holders.some((h) => h.par === null) ? "Balances could not be read from Hedera. Refresh to try again." : "No lender holds this asset yet."}</p>}</div>
       </section>
 
-      <section className="mt-8 card-flat p-6">
-        <h2 className="h2">Register infrastructure</h2>
-        <dl className="mt-3 text-sm grid grid-cols-2 gap-x-10 gap-y-2">
-          <Row k="Security (ATS diamond)" v={<Receipt href={`${HASHSCAN}/contract/${f.tokenId}`}>{f.tokenId} · {short(f.evmAddress, 8, 6)}</Receipt>} />
-          <Row k="Maximum supply" v={<span className="num">{par(f.maxSupply ?? f.units)}</span>} />
-          <Row k="Settlement engine" v={<Receipt href={`${HASHSCAN}/contract/${d.engine.address}`}>{short(d.engine.address, 8, 6)}</Receipt>} />
-          <Row k="Payment token" v={<Receipt href={`${HASHSCAN}/token/${d.mockUsd.tokenId}`}>{d.mockUsd.symbol} {d.mockUsd.tokenId}</Receipt>} />
-          <Row k="RFQ topic (HCS)" v={<Receipt href={`${HASHSCAN}/topic/${d.topics.rfq}`}>{d.topics.rfq}</Receipt>} />
-          <Row k="Notice commitments (HCS)" v={<Receipt href={`${HASHSCAN}/topic/${d.topics.notices}`}>{d.topics.notices}</Receipt>} />
-          {d.registerSnapshot && <Row k="Register snapshot reader" v={<Receipt href={`${HASHSCAN}/contract/${d.registerSnapshot.address}`}>{short(d.registerSnapshot.address, 8, 6)}</Receipt>} />}
-          <Row k="Administrative agent" v={<Receipt href={`${HASHSCAN}/account/${d.operator.accountId}`}>{d.operator.accountId}</Receipt>} />
-          <Row k="Credit agreement" v={<span className="mono text-xs">{f.documentRef}</span>} />
+      <aside className={s.detail} aria-label="Selected asset">
+        <div className={s.detailHead}><span className={s.symbol}>{asset.symbol}</span><a href={`${HASHSCAN}/contract/${asset.tokenId ?? asset.evmAddress}`} target="_blank" rel="noreferrer">ATS security ↗</a></div>
+        <h2>{asset.name}</h2>
+        <dl className={s.facts}>
+          <div><dt>Facility</dt><dd>{asset.facilityType}</dd></div>
+          <div><dt>Principal issued</dt><dd>{usd(asset.totalSupply ?? asset.principal)}</dd></div>
+          <div><dt>Unallocated (agent bank)</dt><dd>{usd(asset.unallocated)}</dd></div>
+          <div><dt>Maturity</dt><dd>{maturity(asset.maturity)}</dd></div>
+          <div><dt>ISIN (synthetic)</dt><dd>{asset.isin}</dd></div>
+          <div><dt>Lender controls</dt><dd>Allowlist + time-bound KYC</dd></div>
+          {asset.createTx && <div><dt>Issuance receipt</dt><dd><a href={txLink(asset.createTx)} target="_blank" rel="noreferrer">{short(asset.createTx, 10, 6)} ↗</a></dd></div>}
+          <div><dt>Secondary market</dt><dd>{asset.tradeable ? "RFQ transfers settle on this asset" : "Register only in this demo"}</dd></div>
         </dl>
-      </section>
-    </div>
-  );
-}
 
-function Row({ k, v }: { k: string; v: React.ReactNode }) {
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <dt className="text-ink-muted">{k}</dt>
-      <dd className="text-right">{v}</dd>
-    </div>
-  );
+        <section className={s.cre} aria-label="Chainlink CRE interest">
+          <div className={s.creTitle}><h3>Interest accrual</h3><Image src="/integrations/chainlink.svg" alt="Chainlink CRE" width={112} height={29} /></div>
+          {asset.accrual ? <>
+            <strong className={s.accrued}>{interest(asset.accrual.totalUnits)}</strong>
+            <p>Period {asset.accrual.periodId} · {asset.accrual.days} days · mUSD</p>
+            <ol className={s.creSteps}>
+              <li className={s.stepDone}><b>✓</b><span>Rate notice committed on HCS{asset.notice?.hcs && <> · <a href={`${HASHSCAN}/topic/${agreement.topics.notices}`} target="_blank" rel="noreferrer">#{asset.notice.hcs.sequence} ↗</a></>}</span></li>
+              <li className={asset.accrual.verified ? s.stepDone : s.stepPending}><b>{asset.accrual.verified ? "✓" : "2"}</b><span>{asset.accrual.verified ? "Verified in the CRE enclave: notice matches the commitment" : asset.accrual.kind === "released" ? "Released by CRE (evidence not matched)" : "CRE confidential run pending"}</span></li>
+              <li className={asset.accrual.tamperRejected ? s.stepDone : s.stepPending}><b>{asset.accrual.tamperRejected ? "✓" : "3"}</b><span>{asset.accrual.tamperRejected ? "Negative test passed: a deliberately tampered notice (rate +25 bps) was rejected by the enclave, nothing released" : "Negative test (tampered notice) not run yet"}</span></li>
+              <li className={asset.accrual.paidUnits ? s.stepDone : s.stepPending}><b>{asset.accrual.paidUnits ? "✓" : "4"}</b><span>{asset.accrual.paidUnits ? <>{interest(asset.accrual.paidUnits)} paid on Hedera{asset.accrual.payoutLink && <> · <a href={asset.accrual.payoutLink} target="_blank" rel="noreferrer">receipt ↗</a></>}</> : "Payout not yet made"}</span></li>
+            </ol>
+            {asset.accrual.kind === "projected" && <p className={s.note}>Amounts are the agent bank’s own estimate from the committed notice. The CRE run recomputes them inside the enclave from live balances.</p>}
+            {asset.accrual.current === false && <p className={s.note}>A newer notice is committed. The next CRE run will refresh these amounts.</p>}
+          </> : <p className={s.note}>No rate notice committed for this asset yet.</p>}
+          <Link href={`/lifecycle?facility=${encodeURIComponent(asset.symbol)}`}>Open interest workflow →</Link>
+        </section>
+
+        <details className={s.evidence}><summary>Agreement evidence</summary><div>
+          <a href={`${HASHSCAN}/account/${agreement.operator.accountId}`} target="_blank" rel="noreferrer">Agent bank account ↗</a>
+          <a href={`${HASHSCAN}/contract/${agreement.engine.address}`} target="_blank" rel="noreferrer">Settlement engine ↗</a>
+          <a href={`${HASHSCAN}/topic/${agreement.topics.notices}`} target="_blank" rel="noreferrer">Notice commitments ↗</a>
+          <p>{agreement.documentRef} · {agreement.governingLaw}</p>
+          <p>Last read {when(data.readAt)}. ATS rechecks every holder’s eligibility when a transfer executes.</p>
+        </div></details>
+      </aside>
+    </div>}
+  </div>;
 }

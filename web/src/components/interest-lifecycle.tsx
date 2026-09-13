@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useApi } from "@/lib/use-me";
 import { HASHSCAN, Pill, Receipt, ago, money, short, when } from "./ui";
 
@@ -8,7 +9,7 @@ type Notice = { facilityId: string; periodId: number; periodStart: number; perio
 type Evidence = { valid?: { ranAt: number; status: "verified"; summary?: string }; tamper?: { ranAt: number; status: "rejected"; summary?: string } };
 type Distribution = { ranAt: number; facilityId: string; periodId: number; commitment: string; days: string; distribution: { holder: string; amountUnits: string }[]; totalUnits: string };
 type Payout = { ranAt: number; facilityId: string; periodId: number; commitment: string; transactionId: string; hashscan: string; totalPaidUnits: string; paid: { holder: string; accountId: string; amountUnits: string }[]; skipped: { holder: string; reason: string }[]; hcs?: { sequence: number } };
-type Payload = { notices: Notice[]; evidence: Evidence; distribution: Distribution | null; payout: Payout | null; topic: string; loanToken: { tokenId: string; evmAddress: string }; mockUsd: { tokenId: string }; confidential: string[]; released: string[]; tee: { type: string; region: string; deployment: string } };
+type Payload = { facility: string; assets: { symbol: string; name: string }[]; notices: Notice[]; evidence: Evidence; distribution: Distribution | null; payout: Payout | null; topic: string; loanToken: { tokenId: string | null; evmAddress: string }; mockUsd: { tokenId: string }; confidential: string[]; released: string[]; tee: { type: string; region: string; deployment: string } };
 
 const stages = [
   { n: "01", system: "ADMINISTRATIVE AGENT", title: "Commit private notice", text: "A salted hash is published. Rate economics and the nonce stay off-ledger.", privacy: "public commitment" },
@@ -20,14 +21,16 @@ const stages = [
 
 export function InterestLifecycle() {
   const api = useApi();
+  const params = useSearchParams();
+  const [facility, setFacility] = useState<string | null>(params.get("facility"));
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const load = useCallback(() => api("/api/lifecycle").then((v) => { setData(v); setError(null); }).catch((e) => setError(e.message)), [api]);
+  const load = useCallback(() => api(`/api/lifecycle${facility ? `?facility=${encodeURIComponent(facility)}` : ""}`, { cache: "no-store" }).then((v) => { setData(v); setError(null); }).catch((e) => setError(e.message)), [api, facility]);
   useEffect(() => { load(); const t = setInterval(load, 10_000); return () => clearInterval(t); }, [load]);
   if (!data) return <div className="room-loading"><i /><span>{error ?? "Loading confidential lifecycle…"}</span></div>;
   const notice = data.notices[0];
   return <div className="lifecycle-page">
-    <div className="room-header"><div><div className="room-eyebrow">FACILITY LIFECYCLE / CHAINLINK CRE</div><h1>Confidential interest accrual</h1><p>Prove the calculation without publishing the facility&apos;s private rate notice.</p></div><div className="tee-badge"><i /><div><strong>{data.tee.type}</strong><small>{data.tee.region} · {data.tee.deployment}</small></div></div></div>
+    <div className="room-header"><div><div className="room-eyebrow">FACILITY LIFECYCLE / CHAINLINK CRE</div><h1>Confidential interest accrual</h1><p>Prove the calculation without publishing the asset&apos;s private rate notice.</p><label className="asset-picker">Asset<select value={data.facility} onChange={(e) => { setData(null); setFacility(e.target.value); }}>{data.assets.map((a) => <option key={a.symbol} value={a.symbol}>{a.symbol} · {a.name}</option>)}</select></label></div><div className="tee-badge"><i /><div><strong>{data.tee.type}</strong><small>{data.tee.region} · {data.tee.deployment}</small></div></div></div>
     {error && <div className="room-warning">Evidence refresh delayed: {error}</div>}
 
     <section className="privacy-banner"><div><span>THE SECURITY BOUNDARY</span><h2>The workflow logic is visible. The data it computes over is not.</h2><p>Secrets, the private API response and intermediate rate calculation remain inside the enclave. The DON receives only the distribution required for settlement.</p></div><div className="privacy-legend"><span><i className="private" /> protected in TEE</span><span><i className="public" /> public / released</span></div></section>
@@ -36,7 +39,7 @@ export function InterestLifecycle() {
 
     <section className="lifecycle-grid">
       <div className="card-flat lifecycle-card"><div className="room-panel-head"><div><span>LATEST PUBLIC COMMITMENT</span><h3>{notice ? `${notice.facilityId} · period ${notice.periodId}` : "No notice committed"}</h3></div>{notice?.hcs && <Receipt href={`${HASHSCAN}/topic/${data.topic}`}>HCS #{notice.hcs.sequence}</Receipt>}</div>{notice ? <><dl className="commitment-data"><div><dt>Commitment</dt><dd title={notice.commitment}>{short(notice.commitment, 16, 12)}</dd></div><div><dt>Accrual period</dt><dd>{when(notice.periodStart)} → {when(notice.periodEnd)}</dd></div><div><dt>Holder snapshot</dt><dd>{notice.holders.length} eligible desk wallets</dd></div><div><dt>Published</dt><dd>{ago(notice.createdAt)}</dd></div></dl><div className="not-on-ledger"><strong>Deliberately absent from Hedera</strong><div>{data.confidential.slice(0,3).map(x => <span key={x}>× {x}</span>)}</div></div></> : <p className="empty-copy">Publish a rate notice from Administration to create the HCS commitment.</p>}</div>
-      <div className="card-flat lifecycle-card"><div className="room-panel-head"><div><span>SIMULATION EVIDENCE</span><h3>Positive and tamper paths</h3></div><button className="btn btn-ghost btn-sm" onClick={load}>Refresh</button></div><EvidenceRow label="Committed notice" evidence={data.evidence.valid} expected="Calculation completes and returns a signed report" /><EvidenceRow label="Modified notice" evidence={data.evidence.tamper} expected="Commitment mismatch aborts before release" /><div className="simulation-command"><span>RUN BOTH TESTS</span><code>npm run demo:cre</code><p>The local simulator is not a real TEE; deployment requires Confidential Workflows private-beta access.</p></div></div>
+      <div className="card-flat lifecycle-card"><div className="room-panel-head"><div><span>SIMULATION EVIDENCE</span><h3>Positive and tamper paths</h3></div><button className="btn btn-ghost btn-sm" onClick={load}>Refresh</button></div><EvidenceRow label="Genuine notice (positive test)" evidence={data.evidence.valid} expected="Calculation completes and returns a signed report" /><EvidenceRow label="Tampered notice (negative test)" evidence={data.evidence.tamper} expected="The agent endpoint serves a deliberately altered notice (rate +25 bps); the enclave must refuse it and release nothing" /><div className="simulation-command"><span>RUN FOR EVERY ASSET</span><code>npm run demo:cre</code><p>Runs the confidential simulation for each asset on the register, then the negative test: the same workflow is fed a deliberately tampered rate notice and must refuse it. In the console, the line “✗ workflow execution failed: REJECTED … TAMPERED … accrual aborted” is the negative test passing. The local simulator is not a real TEE; deployment requires Confidential Workflows private-beta access.</p></div></div>
     </section>
 
     <PayoutPanel distribution={data.distribution} payout={data.payout} notice={notice} mockUsd={data.mockUsd.tokenId} topic={data.topic} />
@@ -73,7 +76,7 @@ function PayoutPanel({ distribution, payout, notice, mockUsd, topic }: { distrib
         <div><dt>Payment token</dt><dd><a href={`${HASHSCAN}/token/${mockUsd}`} target="_blank" rel="noreferrer">{mockUsd}</a></dd></div>
         <div><dt>Payout receipt</dt><dd>{paidFor?.hcs ? <a href={`${HASHSCAN}/topic/${topic}`} target="_blank" rel="noreferrer">HCS #{paidFor.hcs.sequence}</a> : "—"}{paidFor && <small> · {ago(paidFor.ranAt)}</small>}</dd></div>
       </dl>
-      <div className="simulation-command"><span>PAY HOLDERS</span><code>npm run demo:payout</code><p>The paying agent mints the period&apos;s interest on the test token and credits every eligible holder in one atomic HTS transfer, then publishes the receipt on the notices topic.</p></div>
+      <div className="simulation-command"><span>PAY HOLDERS</span><code>npm run demo:payout -- --facility {distribution.facilityId}</code><p>The paying agent mints the period&apos;s interest on the test token and credits every eligible holder in one atomic HTS transfer, then publishes the receipt on the notices topic. A holder skipped for a missing mock-USD association is paid later with <code>--catch-up</code>, once its desk quorum has signed the association step on the Institution page; nobody is paid twice.</p></div>
     </> : <p className="empty-copy">Run <code>npm run demo:cre</code>; the valid simulation releases the per-holder distribution that drives the payout.</p>}
   </div></section>;
 }

@@ -1,7 +1,11 @@
-/** Platform administrators act as the arranger / administrative agent in the registry. An empty allow-list means everyone (local demo). */
+export function platformAdminAllowed(userId: string, allowList: string | undefined, hosted: boolean): boolean {
+  const allowed = (allowList ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  return allowed.length ? allowed.includes(userId) : !hosted;
+}
+
+/** Hosted deployments require explicit agent identities. Judge demo consent has its own reserved scope. */
 export function isPlatformAdmin(userId: string): boolean {
-  const allowed = (process.env.PLATFORM_ADMIN_PRIVY_USER_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  return allowed.length === 0 || allowed.includes(userId);
+  return platformAdminAllowed(userId, process.env.PLATFORM_ADMIN_PRIVY_USER_IDS, Boolean(process.env.VERCEL) || process.env.NODE_ENV === "production");
 }
 
 /** Stable, distinct colour per institution for the register and assignment views. */

@@ -1,7 +1,9 @@
 import { privy } from "./privy-server";
-import { txFields, broadcast } from "./hedera";
+import { txFields, broadcast, transactionOutcome, walletNonce } from "./hedera";
 import { venue } from "./venue";
-import { trades } from "./trades";
+import { Transaction } from "ethers";
+import { nextUnreservedNonce, type NonceIntent } from "./desk-nonce";
+import { hostedStorageConfigured, withHostedLease } from "./demo/hosted-store";
 
 /**
  * Desk-wallet transactions: proposed as Privy intents (quorum-approved), executed by Privy as a
@@ -9,37 +11,49 @@ import { trades } from "./trades";
  */
 
 /**
- * Nonce for a desk wallet: the relay's pending nonce, or one past the highest nonce among this wallet's
- * intents that are still pending or executed-but-not-yet-mined. Reading the wallet's own intents keeps
- * two proposals from ever sharing a nonce, whatever the venue's records say.
+ * Reserve the first unused nonce. A rejected future-nonce approval must not leave a permanent gap.
+ * Privy reads fail closed: a trade-count fallback does not know about wallet setup approvals.
  */
-async function nextNonce(walletId: string, wallet: string) {
+async function nextNonce(walletId: string, wallet: string, requireCurrentNonce = false) {
   const fields = await txFields(wallet);
-  let next = fields.nonce;
-  try {
-    const page = await privy().intents().list({ resource_id: walletId, sort_by: "created_at_desc", limit: 50 } as never);
-    for (const it of page.getPaginatedItems() as unknown as { status: string; request_details?: { body?: { params?: { transaction?: { nonce?: number } } } } }[]) {
-      const n = it.request_details?.body?.params?.transaction?.nonce;
-      if (typeof n !== "number") continue;
-      if (it.status === "pending" || (it.status === "executed" && n >= fields.nonce)) next = Math.max(next, n + 1);
+  const intents: NonceIntent[] = [];
+  const page = await privy().intents().list({ resource_id: walletId, sort_by: "created_at_desc", limit: 50 } as never);
+  for await (const item of page) {
+    const intent = item as unknown as NonceIntent & IntentView;
+    const signed = signedTxOf(intent);
+    if (intent.status === "executed" && signed) {
+      const tx = Transaction.from(signed);
+      if (tx.nonce >= fields.nonce && tx.hash && (await transactionOutcome(tx.hash))?.status === 0) continue;
     }
-  } catch {
-    // Fall back to the venue's own count of unbroadcast approvals.
-    const pending = trades.read().trades.flatMap((t) => [t.approvals.seller, t.approvals.buyer]).filter((a) => a.intentId && a.wallet.toLowerCase() === wallet.toLowerCase() && !a.txHash && a.intentStatus !== "rejected" && a.intentStatus !== "expired").length;
-    next = fields.nonce + pending;
+    intents.push(intent);
   }
-  return { ...fields, nonce: next };
+  const currentNonce = await walletNonce(wallet);
+  const nonce = nextUnreservedNonce(currentNonce, intents, venue().chainId);
+  if (requireCurrentNonce && nonce !== currentNonce) throw new Error("Another institution approval already reserves the next wallet nonce. Complete or reject that approval before retrying setup.");
+  return { ...fields, nonce };
 }
 
-export async function proposeDeskTx(input: { walletId: string; walletAddress: string; to: string; data: string; gasLimit?: number; extraPendingNonce?: number }) {
-  const fields = await nextNonce(input.walletId, input.walletAddress);
+const proposalRegistry = globalThis as typeof globalThis & { syndicatelendProposalTails?: Map<string, Promise<unknown>> };
+const proposalTails = proposalRegistry.syndicatelendProposalTails ??= new Map<string, Promise<unknown>>();
+
+export async function proposeDeskTx(input: { walletId: string; walletAddress: string; to: string; data: string; gasLimit?: number; requireCurrentNonce?: boolean }) {
+  const prior = proposalTails.get(input.walletId) ?? Promise.resolve();
+  const work = prior.catch(() => undefined).then(() => hostedStorageConfigured()
+    ? withHostedLease(`wallet-nonce:${input.walletId}`, () => propose(input)) : propose(input));
+  proposalTails.set(input.walletId, work);
+  try { return await work; }
+  finally { if (proposalTails.get(input.walletId) === work) proposalTails.delete(input.walletId); }
+}
+
+async function propose(input: { walletId: string; walletAddress: string; to: string; data: string; gasLimit?: number; requireCurrentNonce?: boolean }) {
+  const fields = await nextNonce(input.walletId, input.walletAddress, input.requireCurrentNonce);
   const tx = {
     to: input.to,
     data: input.data,
     value: "0x0",
     chain_id: venue().chainId,
     type: 2,
-    nonce: fields.nonce + (input.extraPendingNonce ?? 0),
+    nonce: fields.nonce,
     gas_limit: input.gasLimit ?? fields.gas_limit,
     max_fee_per_gas: fields.max_fee_per_gas,
     max_priority_fee_per_gas: fields.max_priority_fee_per_gas,
@@ -50,6 +64,8 @@ export async function proposeDeskTx(input: { walletId: string; walletAddress: st
 
 export interface IntentView {
   intent_id: string;
+  resource_id?: string;
+  request_details?: NonceIntent["request_details"];
   status: string;
   authorization_details: { threshold: number; members: { signed_at: number | null; user_id?: string }[] }[];
   action_result?: { response_body?: { data?: { signed_transaction?: string } } };

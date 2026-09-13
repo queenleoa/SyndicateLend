@@ -124,6 +124,19 @@ function InstitutionCard({ i, onChange }: { i: Inst; onChange: () => void }) {
     }
   }
 
+  async function remove() {
+    if (busy || !window.confirm(`Remove ${i.name} from the directory? Its Privy wallet and on-chain balances are untouched; the app just stops listing it.`)) return;
+    setBusy("remove");
+    setErr(null);
+    try {
+      await api(`/api/admin/institutions/${i.id}`, { method: "DELETE" });
+      onChange();
+    } catch (e) {
+      setErr((e as Error).message);
+      setBusy(null);
+    }
+  }
+
   const stepState = (s?: Step): StepState => (!s ? "pending" : s.txHash ? "done" : s.error || ["rejected", "expired", "failed"].includes(s.status ?? "") ? "failed" : "active");
   const deskStep = (s?: Step) => (!s ? "not proposed" : s.txHash ? "on-chain" : `${s.signatures ?? 0}/${s.threshold ?? 2} approvals · ${s.status}`);
   const steps = [
@@ -174,6 +187,9 @@ function InstitutionCard({ i, onChange }: { i: Inst; onChange: () => void }) {
             <Steps items={steps} />
           </div>
           <div className="mt-4 flex flex-wrap gap-2 items-center">
+            <button className="btn btn-secondary btn-sm" disabled={busy !== null} onClick={() => void remove()} title="Remove this desk record from the directory">
+              {busy === "remove" ? "Removing…" : "Remove record"}
+            </button>
             <button className="btn btn-secondary btn-sm" disabled={busy !== null} onClick={() => act("fund", { hbar: "25" })}>
               {busy === "fund" ? "Funding…" : "Fund 25 HBAR"}
             </button>

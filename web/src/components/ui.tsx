@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import type { ReactNode } from "react";
 
 export const HASHSCAN = "https://hashscan.io/testnet";
@@ -127,4 +128,9 @@ export function NavLink({ href, children }: { href: string; children: ReactNode 
       {children}
     </Link>
   );
+}
+
+/** The Privy wordmark, sized for inline use in headings and buttons. */
+export function PrivyMark({ height = 22 }: { height?: number }) {
+  return <span className="privy-mark" style={{ height }}><Image src="/integrations/privy.png" alt="Privy" width={505} height={278} style={{ height, width: "auto" }} /></span>;
 }

@@ -26,12 +26,22 @@ export interface AgentConsent {
 }
 
 export interface TradeRecord {
+  /** Synthetic demo assignment between two automated institutions; the agent bank must consent manually. */
+  demo?: {
+    kind: "transfer-demo" | "agent-registry";
+    runId: string;
+    manualConsent: true;
+    automatedInstitutions: [string, string];
+    requestedBy?: string;
+  };
   /** On-chain instruction id once the arranger has consented; before that a provisional `pending-…` id. */
   tradeId: string;
   rfqId: string;
   quoteId: string;
   instructionHash: string;
   createTx: string;
+  /** Recorded after publication so interrupted consent can resume the HCS audit step. */
+  instructionHcsSequence?: number;
   facility: string;
   seller: { institution: string; wallet: string };
   buyer: { institution: string; wallet: string };
