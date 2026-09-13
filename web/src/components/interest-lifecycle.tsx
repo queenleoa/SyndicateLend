@@ -9,14 +9,14 @@ type Notice = { facilityId: string; periodId: number; periodStart: number; perio
 type Evidence = { valid?: { ranAt: number; status: "verified"; summary?: string }; tamper?: { ranAt: number; status: "rejected"; summary?: string } };
 type Distribution = { ranAt: number; facilityId: string; periodId: number; commitment: string; days: string; distribution: { holder: string; amountUnits: string }[]; totalUnits: string };
 type Payout = { ranAt: number; facilityId: string; periodId: number; commitment: string; transactionId: string; hashscan: string; totalPaidUnits: string; paid: { holder: string; accountId: string; amountUnits: string }[]; skipped: { holder: string; reason: string }[]; hcs?: { sequence: number } };
-type Payload = { facility: string; assets: { symbol: string; name: string }[]; notices: Notice[]; evidence: Evidence; distribution: Distribution | null; payout: Payout | null; topic: string; loanToken: { tokenId: string | null; evmAddress: string }; mockUsd: { tokenId: string }; confidential: string[]; released: string[]; tee: { type: string; region: string; deployment: string } };
+type Payload = { facility: string; holders: Record<string, { name: string; kind: string }>; assets: { symbol: string; name: string }[]; notices: Notice[]; evidence: Evidence; distribution: Distribution | null; payout: Payout | null; topic: string; loanToken: { tokenId: string | null; evmAddress: string }; mockUsd: { tokenId: string }; confidential: string[]; released: string[]; tee: { type: string; region: string; deployment: string } };
 
-const stages = [
-  { n: "01", system: "ADMINISTRATIVE AGENT", title: "Commit private notice", text: "A salted hash is published. Rate economics and the nonce stay off-ledger.", privacy: "public commitment" },
-  { n: "02", system: "CHAINLINK CRE", title: "Enter confidential handler", text: "handlerInTee registers the calculation for a hardware-isolated environment.", privacy: "attested enclave" },
-  { n: "03", system: "INSIDE THE TEE", title: "Verify and calculate", text: "Fetch the authenticated notice, match its hash, read ATS balances and calculate integer accrual.", privacy: "data protected" },
-  { n: "04", system: "DON REPORT", title: "Release distribution only", text: "Only holder addresses and payment amounts cross the confidentiality boundary.", privacy: "minimal output" },
-  { n: "05", system: "PAYING AGENT", title: "Pay holders in mock USD", text: "One atomic HTS transfer credits every eligible holder the amount the enclave computed.", privacy: "public receipt" },
+const STAGES = [
+  { n: "01", who: "Agent bank", title: "Commit private notice", tone: "public" },
+  { n: "02", who: "Chainlink CRE", title: "Enter confidential handler", tone: "private" },
+  { n: "03", who: "Inside the TEE", title: "Verify and calculate", tone: "private" },
+  { n: "04", who: "DON report", title: "Release distribution only", tone: "public" },
+  { n: "05", who: "Paying agent", title: "Pay holders in mock USD", tone: "public" },
 ];
 
 export function InterestLifecycle() {
@@ -27,56 +27,104 @@ export function InterestLifecycle() {
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(() => api(`/api/lifecycle${facility ? `?facility=${encodeURIComponent(facility)}` : ""}`, { cache: "no-store" }).then((v) => { setData(v); setError(null); }).catch((e) => setError(e.message)), [api, facility]);
   useEffect(() => { load(); const t = setInterval(load, 10_000); return () => clearInterval(t); }, [load]);
-  if (!data) return <div className="room-loading"><i /><span>{error ?? "Loading confidential lifecycle…"}</span></div>;
+  if (!data) return <div className="room-loading"><i /><span>{error ?? "Loading interest and payments…"}</span></div>;
   const notice = data.notices[0];
-  return <div className="lifecycle-page">
-    <div className="room-header"><div><div className="room-eyebrow">FACILITY LIFECYCLE / CHAINLINK CRE</div><h1>Confidential interest accrual</h1><p>Prove the calculation without publishing the asset&apos;s private rate notice.</p><label className="asset-picker">Asset<select value={data.facility} onChange={(e) => { setData(null); setFacility(e.target.value); }}>{data.assets.map((a) => <option key={a.symbol} value={a.symbol}>{a.symbol} · {a.name}</option>)}</select></label></div><div className="tee-badge"><i /><div><strong>{data.tee.type}</strong><small>{data.tee.region} · {data.tee.deployment}</small></div></div></div>
+  const paidFor = data.payout && data.distribution && data.payout.commitment.toLowerCase() === data.distribution.commitment.toLowerCase() ? data.payout : null;
+  const done = [Boolean(notice?.hcs), Boolean(data.evidence.valid), Boolean(data.evidence.valid), Boolean(data.distribution), Boolean(paidFor)];
+  return <div className="lc">
+    <header className="lc-head">
+      <div><div className="room-eyebrow">FACILITY LIFECYCLE / CHAINLINK CRE</div><h1>Interest &amp; payments</h1></div>
+      <div className="lc-head-right">
+        <label className="lc-picker">Asset<select value={data.facility} onChange={(e) => { setData(null); setFacility(e.target.value); }}>{data.assets.map((a) => <option key={a.symbol} value={a.symbol}>{a.symbol} · {a.name}</option>)}</select></label>
+        <span className="lc-tee" title={`${data.tee.region} · ${data.tee.deployment}`}><i />{data.tee.type} enclave</span>
+        <button className="btn btn-ghost btn-sm" onClick={load}>Refresh</button>
+      </div>
+    </header>
     {error && <div className="room-warning">Evidence refresh delayed: {error}</div>}
 
-    <section className="privacy-banner"><div><span>THE SECURITY BOUNDARY</span><h2>The workflow logic is visible. The data it computes over is not.</h2><p>Secrets, the private API response and intermediate rate calculation remain inside the enclave. The DON receives only the distribution required for settlement.</p></div><div className="privacy-legend"><span><i className="private" /> protected in TEE</span><span><i className="public" /> public / released</span></div></section>
+    <PayoutPanel data={data} notice={notice} paidFor={paidFor} />
 
-    <section className="cre-pipeline">{stages.map((s, i) => <div className="cre-stage" key={s.n}><div className="cre-stage-top"><span>{s.n}</span><b>{s.system}</b></div><div className={`cre-node ${i === 1 || i === 2 ? "private" : "public"}`}><i>{i === 0 ? "#" : i === 1 ? "◇" : i === 2 ? "∑" : i === 3 ? "✓" : "$"}</i><div><strong>{s.title}</strong><p>{s.text}</p><small>{s.privacy}</small></div></div>{i < stages.length - 1 && <div className="cre-connector">→</div>}</div>)}</section>
+    <ol className="lc-pipeline" aria-label="Confidential accrual pipeline">{STAGES.map((s, i) => <li key={s.n} className={`${s.tone} ${done[i] ? "done" : ""}`}><b>{done[i] ? "✓" : s.n}</b><div><span>{s.who}</span><strong>{s.title}</strong></div></li>)}</ol>
 
-    <section className="lifecycle-grid">
-      <div className="card-flat lifecycle-card"><div className="room-panel-head"><div><span>LATEST PUBLIC COMMITMENT</span><h3>{notice ? `${notice.facilityId} · period ${notice.periodId}` : "No notice committed"}</h3></div>{notice?.hcs && <Receipt href={`${HASHSCAN}/topic/${data.topic}`}>HCS #{notice.hcs.sequence}</Receipt>}</div>{notice ? <><dl className="commitment-data"><div><dt>Commitment</dt><dd title={notice.commitment}>{short(notice.commitment, 16, 12)}</dd></div><div><dt>Accrual period</dt><dd>{when(notice.periodStart)} → {when(notice.periodEnd)}</dd></div><div><dt>Holder snapshot</dt><dd>{notice.holders.length} eligible desk wallets</dd></div><div><dt>Published</dt><dd>{ago(notice.createdAt)}</dd></div></dl><div className="not-on-ledger"><strong>Deliberately absent from Hedera</strong><div>{data.confidential.slice(0,3).map(x => <span key={x}>× {x}</span>)}</div></div></> : <p className="empty-copy">Publish a rate notice from Administration to create the HCS commitment.</p>}</div>
-      <div className="card-flat lifecycle-card"><div className="room-panel-head"><div><span>SIMULATION EVIDENCE</span><h3>Positive and tamper paths</h3></div><button className="btn btn-ghost btn-sm" onClick={load}>Refresh</button></div><EvidenceRow label="Genuine notice (positive test)" evidence={data.evidence.valid} expected="Calculation completes and returns a signed report" /><EvidenceRow label="Tampered notice (negative test)" evidence={data.evidence.tamper} expected="The agent endpoint serves a deliberately altered notice (rate +25 bps); the enclave must refuse it and release nothing" /><div className="simulation-command"><span>RUN FOR EVERY ASSET</span><code>npm run demo:cre</code><p>Runs the confidential simulation for each asset on the register, then the negative test: the same workflow is fed a deliberately tampered rate notice and must refuse it. In the console, the line “✗ workflow execution failed: REJECTED … TAMPERED … accrual aborted” is the negative test passing. The local simulator is not a real TEE; deployment requires Confidential Workflows private-beta access.</p></div></div>
+    <section className="lc-grid">
+      <div className="card-flat lc-card">
+        <div className="lc-card-head"><div><span className="room-eyebrow">LATEST PUBLIC COMMITMENT</span><h3>{notice ? `${notice.facilityId} · period ${notice.periodId}` : "No notice committed"}</h3></div>{notice?.hcs && <Receipt href={`${HASHSCAN}/topic/${data.topic}`}>HCS #{notice.hcs.sequence}</Receipt>}</div>
+        {notice ? <dl className="lc-facts"><div><dt>Commitment</dt><dd title={notice.commitment}>{short(notice.commitment, 12, 8)}</dd></div><div><dt>Period</dt><dd>{when(notice.periodStart)} → {when(notice.periodEnd)}</dd></div><div><dt>Snapshot</dt><dd>{notice.holders.length} eligible wallets</dd></div><div><dt>Published</dt><dd>{ago(notice.createdAt)}</dd></div><div><dt>Kept off-ledger</dt><dd>{data.confidential.slice(0, 3).join(" · ")}</dd></div></dl> : <p className="lc-empty">Publish a rate notice from Administration to create the HCS commitment.</p>}
+      </div>
+      <div className="card-flat lc-card">
+        <div className="lc-card-head"><div><span className="room-eyebrow">SIMULATION EVIDENCE</span><h3>Positive and tamper paths</h3></div></div>
+        <EvidenceRow label="Genuine notice" evidence={data.evidence.valid} expected="Calculation completes and returns a signed report" />
+        <EvidenceRow label="Tampered notice (rate +25 bps)" evidence={data.evidence.tamper} expected="The enclave must refuse it and release nothing" />
+        <p className="lc-cmd-line"><code>npm run demo:cre</code> runs both paths for every asset. The local simulator is not a real TEE; deployment needs Confidential Workflows access.</p>
+      </div>
     </section>
 
-    <PayoutPanel distribution={data.distribution} payout={data.payout} notice={notice} mockUsd={data.mockUsd.tokenId} topic={data.topic} />
-
-    <section className="boundary-table"><div><span>STAYS CONFIDENTIAL</span>{data.confidential.map(x => <p key={x}><i>◆</i>{x}</p>)}</div><b>TEE<br />BOUNDARY</b><div><span>MAY LEAVE THE ENCLAVE</span>{data.released.map(x => <p key={x}><i>◇</i>{x}</p>)}</div></section>
+    <details className="lc-boundary"><summary>Confidentiality boundary · what stays inside the enclave</summary><div>
+      <div><span className="room-eyebrow">STAYS CONFIDENTIAL</span>{data.confidential.map((x) => <p key={x}><i>◆</i>{x}</p>)}</div>
+      <div><span className="room-eyebrow">MAY LEAVE THE ENCLAVE</span>{data.released.map((x) => <p key={x}><i>◇</i>{x}</p>)}</div>
+    </div></details>
   </div>;
 }
 
 function EvidenceRow({ label, evidence, expected }: { label: string; evidence?: { ranAt: number; status: "verified" | "rejected"; summary?: string }; expected: string }) {
-  return <div className="evidence-row"><div className={`evidence-icon ${evidence?.status ?? "pending"}`}>{evidence ? "✓" : "·"}</div><div><strong>{label}</strong><p>{evidence?.summary ?? expected}</p>{evidence && <small>captured {ago(evidence.ranAt)}</small>}</div><Pill tone={evidence?.status === "verified" ? "ok" : evidence?.status === "rejected" ? "bad" : "warn"}>{evidence?.status ?? "not captured"}</Pill></div>;
+  return <div className="lc-evidence"><span className={`lc-evidence-icon ${evidence?.status ?? "pending"}`}>{evidence ? "✓" : "·"}</span><div><strong>{label}</strong><span>{evidence?.summary ?? expected}{evidence && ` · ${ago(evidence.ranAt)}`}</span></div><Pill tone={evidence?.status === "verified" ? "ok" : evidence?.status === "rejected" ? "bad" : "warn"}>{evidence?.status ?? "not captured"}</Pill></div>;
 }
 
-/** FR-12: the released distribution and the mock-USD payout made from it. */
-function PayoutPanel({ distribution, payout, notice, mockUsd, topic }: { distribution: Distribution | null; payout: Payout | null; notice?: Notice; mockUsd: string; topic: string }) {
-  const current = distribution && notice && distribution.commitment.toLowerCase() === notice.commitment.toLowerCase();
-  const paidFor = payout && distribution && payout.commitment.toLowerCase() === distribution.commitment.toLowerCase() ? payout : null;
+const SKIP: Record<string, string> = { "no par in the register snapshot": "no par at payout time", "mock USD KYC not granted": "mUSD KYC not granted", "mock USD frozen": "mUSD frozen", "no Hedera account yet": "no Hedera account" };
+const skipLabel = (reason: string) => reason.startsWith("mock USD not associated") ? "mUSD not associated · desk must sign" : SKIP[reason] ?? reason;
+
+type Row = { key: string; name: string; sub: string; href: string | null; amount: bigint; paid: number; skipped: string | null; count: number };
+
+/** FR-12: the released distribution and the mock-USD payout made from it, holders first. */
+function PayoutPanel({ data, notice, paidFor }: { data: Payload; notice?: Notice; paidFor: Payout | null }) {
+  const [showZero, setShowZero] = useState(false);
+  const dist = data.distribution;
+  const current = dist && notice && dist.commitment.toLowerCase() === notice.commitment.toLowerCase();
   const paidBy = new Map((paidFor?.paid ?? []).map((p) => [p.holder.toLowerCase(), p]));
   const skippedBy = new Map((paidFor?.skipped ?? []).map((p) => [p.holder.toLowerCase(), p.reason]));
-  return <section className="lifecycle-grid"><div className="card-flat lifecycle-card" style={{ gridColumn: "1 / -1" }}>
-    <div className="room-panel-head"><div><span>RELEASED DISTRIBUTION AND PAYOUT</span><h3>{distribution ? `${distribution.facilityId} · period ${distribution.periodId} · ${distribution.days} days` : "No distribution released yet"}</h3></div>
-      {paidFor ? <Receipt href={paidFor.hashscan}>HTS transfer</Receipt> : <Pill tone={distribution ? "warn" : ""}>{distribution ? "not paid" : "run demo:cre"}</Pill>}</div>
-    {distribution ? <>
+  const rows = new Map<string, Row>();
+  for (const d of dist?.distribution ?? []) {
+    const addr = d.holder.toLowerCase();
+    const who = data.holders[addr];
+    const grouped = who?.kind === "feeder";
+    const key = grouped ? `feeder:${who.name}` : addr;
+    const paid = paidBy.get(addr);
+    const reason = skippedBy.get(addr) ?? null;
+    const row = rows.get(key) ?? { key, name: who?.name ?? short(addr, 8, 6), sub: grouped ? "" : addr, href: grouped ? null : `${HASHSCAN}/account/${addr}`, amount: 0n, paid: 0, skipped: null, count: 0 };
+    row.amount += BigInt(d.amountUnits); row.count += 1;
+    if (paid) row.paid += 1; else if (reason && !row.skipped) row.skipped = reason;
+    if (paid && !grouped) row.sub = `paid to ${paid.accountId}`;
+    rows.set(key, row);
+  }
+  const all = [...rows.values()].sort((a, b) => (a.amount === b.amount ? 0 : a.amount > b.amount ? -1 : 1));
+  const zero = all.filter((r) => r.amount === 0n);
+  const shown = showZero ? all : all.filter((r) => r.amount > 0n);
+  const paidTotal = BigInt(paidFor?.totalPaidUnits ?? "0");
+  const total = BigInt(dist?.totalUnits ?? "0");
+  const outstanding = all.filter((r) => r.amount > 0n && r.paid < r.count).length;
+  return <section className="card-flat lc-payout" aria-label="Released distribution and payout">
+    <div className="lc-payout-head">
+      <div><span className="room-eyebrow">RELEASED DISTRIBUTION &amp; PAYOUT</span><h2>{dist ? `${dist.facilityId} · period ${dist.periodId} · ${dist.days} days` : "No distribution released yet"}</h2></div>
+      {dist && <dl className="lc-stats">
+        <div><dt>Computed</dt><dd>{money(total)} <small>mUSD</small></dd></div>
+        <div><dt>Paid on-chain</dt><dd>{paidFor ? money(paidTotal) : "—"} <small>{paidFor ? `${paidFor.paid.length} holders` : "not paid"}</small></dd></div>
+        <div><dt>Outstanding</dt><dd>{money(total - paidTotal)} <small>{outstanding ? `${outstanding} holder${outstanding === 1 ? "" : "s"}` : "none"}</small></dd></div>
+        <div><dt>Receipt</dt><dd>{paidFor ? <><Receipt href={paidFor.hashscan}>HTS transfer</Receipt>{paidFor.hcs && <> · <a href={`${HASHSCAN}/topic/${data.topic}`} target="_blank" rel="noreferrer">HCS #{paidFor.hcs.sequence}</a></>}</> : <Pill tone="warn">not paid</Pill>}</dd></div>
+      </dl>}
+    </div>
+    {dist ? <>
       {!current && <div className="room-warning">This distribution was released for an earlier commitment than the latest notice. Run the simulation again to refresh it.</div>}
-      <div style={{ overflowX: "auto" }}><table className="grid"><thead><tr><th>Holder</th><th>Interest due (mUSD)</th><th>Payment</th></tr></thead><tbody>
-        {distribution.distribution.map((d) => { const p = paidBy.get(d.holder.toLowerCase()); const why = skippedBy.get(d.holder.toLowerCase()); return <tr key={d.holder}>
-          <td title={d.holder}><a href={`${HASHSCAN}/account/${d.holder}`} target="_blank" rel="noreferrer">{short(d.holder, 8, 6)}</a></td>
-          <td>{money(d.amountUnits)}</td>
-          <td>{p ? <Pill tone="ok">paid · {p.accountId}</Pill> : why ? <Pill tone={BigInt(d.amountUnits) === 0n ? "" : "warn"}>{why}</Pill> : <Pill tone="warn">pending</Pill>}</td>
-        </tr>; })}
+      <div className="lc-table-wrap"><table className="grid lc-table"><thead><tr><th>Holder</th><th className="num">Interest due (mUSD)</th><th>Payment</th></tr></thead><tbody>
+        {shown.map((r) => <tr key={r.key}>
+          <td><strong>{r.href ? <a href={r.href} target="_blank" rel="noreferrer">{r.name}</a> : r.name}</strong>{r.count > 1 ? <span>{r.count} holders · {r.paid} paid</span> : r.sub && <span>{r.sub}</span>}</td>
+          <td className="num">{money(r.amount)}</td>
+          <td>{r.count > 1 ? <Pill tone={r.paid === r.count ? "ok" : r.paid ? "warn" : r.skipped ? "warn" : ""}>{r.paid === r.count ? "paid" : r.paid ? `${r.paid}/${r.count} paid` : r.skipped ? skipLabel(r.skipped) : paidFor ? "pending" : "not paid"}</Pill> : r.paid ? <Pill tone="ok">paid</Pill> : r.skipped ? <Pill tone={r.amount === 0n ? "" : "warn"}>{skipLabel(r.skipped)}</Pill> : <Pill tone={paidFor ? "warn" : ""}>{paidFor ? "pending" : "not paid"}</Pill>}</td>
+        </tr>)}
       </tbody></table></div>
-      <dl className="commitment-data" style={{ marginTop: "0.75rem" }}>
-        <div><dt>Computed total</dt><dd>{money(distribution.totalUnits)} mUSD</dd></div>
-        <div><dt>Paid on-chain</dt><dd>{paidFor ? `${money(paidFor.totalPaidUnits)} mUSD to ${paidFor.paid.length} holders` : "not yet"}</dd></div>
-        <div><dt>Payment token</dt><dd><a href={`${HASHSCAN}/token/${mockUsd}`} target="_blank" rel="noreferrer">{mockUsd}</a></dd></div>
-        <div><dt>Payout receipt</dt><dd>{paidFor?.hcs ? <a href={`${HASHSCAN}/topic/${topic}`} target="_blank" rel="noreferrer">HCS #{paidFor.hcs.sequence}</a> : "—"}{paidFor && <small> · {ago(paidFor.ranAt)}</small>}</dd></div>
-      </dl>
-      <div className="simulation-command"><span>PAY HOLDERS</span><code>npm run demo:payout -- --facility {distribution.facilityId}</code><p>The paying agent mints the period&apos;s interest on the test token and credits every eligible holder in one atomic HTS transfer, then publishes the receipt on the notices topic. A holder skipped for a missing mock-USD association is paid later with <code>--catch-up</code>, once its desk quorum has signed the association step on the Institution page; nobody is paid twice.</p></div>
-    </> : <p className="empty-copy">Run <code>npm run demo:cre</code>; the valid simulation releases the per-holder distribution that drives the payout.</p>}
-  </div></section>;
+      <div className="lc-payout-foot">
+        {zero.length > 0 && <button className="btn btn-ghost btn-sm" onClick={() => setShowZero(!showZero)}>{showZero ? "Hide" : "Show"} {zero.length} holder{zero.length === 1 ? "" : "s"} with no par</button>}
+        <details className="lc-cmd"><summary>Pay or catch up from the terminal</summary><code>npm run demo:payout -- --facility {dist.facilityId}{paidFor ? " --catch-up" : ""}</code><p>The paying agent mints the period’s interest on the test token and credits every eligible holder in one atomic HTS transfer. A holder skipped for a missing mock-USD association is paid by <code>--catch-up</code> once its desk quorum has signed the association on the Institution page; nobody is paid twice.</p></details>
+      </div>
+    </> : <p className="lc-empty">Run <code>npm run demo:cre</code>; the valid simulation releases the per-holder distribution that drives the payout.</p>}
+  </section>;
 }

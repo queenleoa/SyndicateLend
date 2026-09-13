@@ -1,7 +1,7 @@
 import { optionalDesk } from "@/lib/desk-auth";
 import { jsonError } from "@/lib/privy-server";
 import { notices } from "@/lib/notices";
-import { findAsset, listAssets, readDeployment } from "@/lib/assets";
+import { findAsset, holderDirectory, listAssets, readDeployment } from "@/lib/assets";
 import { readDistribution, readEvidence, readPayout } from "@/lib/register-interest";
 
 export const maxDuration = 60;
@@ -20,8 +20,12 @@ export async function GET(req: Request) {
     const distribution = readDistribution(symbol);
     const payout = readPayout(symbol, distribution?.commitment ?? null);
     const own = evidence.assets?.[symbol];
+    // Names for the distribution table: every wallet of every register line, so retail feeder holders can be grouped.
+    const holders: Record<string, { name: string; kind: string }> = {};
+    for (const h of holderDirectory(deployment)) for (const w of h.wallets) holders[w] = { name: h.name, kind: h.kind };
     return Response.json({
       facility: symbol,
+      holders,
       assets: assets.map((a) => ({ symbol: a.symbol, name: a.name })),
       notices: publicNotices,
       evidence: { valid: own ? { ranAt: own.ranAt, status: own.status, summary: `Commitment matched; accrual report generated for ${own.holders} holders (${symbol}).`, periodId: own.periodId } : evidence.valid?.facilityId === symbol || (!evidence.valid?.facilityId && symbol === deployment.loanToken.symbol) ? evidence.valid : undefined, tamper: evidence.tamper },
