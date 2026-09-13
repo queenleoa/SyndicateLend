@@ -142,11 +142,10 @@ export async function proposeDeskStep(id: string, step: "usdAssociate" | "allowL
   const spec = {
     usdAssociate: { to: v.mockUsd, data: hrc719.encodeFunctionData("associate", []), gas: 1_000_000 },
     allowLoan: { to: v.loanToken, data: erc20.encodeFunctionData("approve", [v.settlementEngine, MaxUint256]), gas: 1_500_000 },
-    allowUsd: { to: v.mockUsd, data: erc20.encodeFunctionData("approve", [v.settlementEngine, MaxUint256]), gas: 1_000_000 },
+    // HTS allowances are int64: approving 2^256-1 on the mock-USD facade reverts. The ATS token takes a uint256.
+    allowUsd: { to: v.mockUsd, data: erc20.encodeFunctionData("approve", [v.settlementEngine, (1n << 63n) - 1n]), gas: 1_000_000 },
   }[step];
-  const h = onboardingOf(i);
-  const pendingSteps = (["usdAssociate", "allowLoan", "allowUsd"] as const).filter((s) => h[s] && !h[s]!.txHash && !["rejected", "expired"].includes(h[s]!.status ?? "")).length;
-  const intent = await proposeDeskTx({ walletId: i.wallet!.id, walletAddress: i.wallet!.address, to: spec.to, data: spec.data, gasLimit: spec.gas, extraPendingNonce: pendingSteps });
+  const intent = await proposeDeskTx({ walletId: i.wallet!.id, walletAddress: i.wallet!.address, to: spec.to, data: spec.data, gasLimit: spec.gas });
   save(id, (hh) => (hh[step] = { intentId: intent.intent_id, status: intent.status, signatures: 0, threshold: intent.authorization_details[0]?.threshold }));
   return intent.intent_id;
 }
@@ -188,10 +187,11 @@ export async function syncOnboarding(id: string) {
   for (const step of ["usdAssociate", "allowLoan", "allowUsd"] as const) {
     const s = h[step];
     if (!s || s.txHash) continue;
+    let upd: DeskStep = { ...s };
     try {
       const intent = await fetchIntent(s.intentId);
       const q = intent.authorization_details[0];
-      const upd: DeskStep = { ...s, status: intent.status, signatures: q?.members.filter((m) => m.signed_at).length ?? 0, threshold: q?.threshold };
+      upd = { ...s, status: intent.status, signatures: q?.members.filter((m) => m.signed_at).length ?? 0, threshold: q?.threshold, error: undefined };
       if (intent.status === "executed" && signedTxOf(intent)) {
         const r = await broadcastIntent(intent);
         upd.txHash = r.hash;
@@ -200,7 +200,10 @@ export async function syncOnboarding(id: string) {
       }
       save(id, (hh) => (hh[step] = upd));
     } catch (e) {
-      save(id, (hh) => (hh[step] = { ...s, error: (e as Error).message.slice(0, 200) }));
+      // Keep the refreshed intent status; record the broadcast failure in a readable form.
+      const err = e as Error & { info?: { responseBody?: string }; error?: { message?: string } };
+      const text = err.error?.message ?? err.info?.responseBody ?? err.message ?? String(e);
+      save(id, (hh) => (hh[step] = { ...upd, error: text.slice(0, 300) }));
     }
   }
   return out;

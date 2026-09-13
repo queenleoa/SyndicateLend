@@ -15,6 +15,7 @@ export type TradeView = {
   settleAt: number;
   expiresAt: number;
   approvals: Record<"seller" | "buyer", { institution: string; intentId: string; intentStatus?: string; signatures?: number; threshold?: number; txHash?: string; broadcastError?: string }>;
+  consent?: { status: "pending" | "granted"; requestedAt: number; grantedAt?: number; grantedBy?: string; auto?: boolean };
   state?: string;
   scheduleAddress?: string;
   failureReason?: string;
@@ -29,13 +30,16 @@ export function lifecycle(t: TradeView): { title: string; sub?: string; state: S
   const failed = s === "Failed";
   const cancelled = s === "Cancelled";
   const scheduled = s === "Scheduled";
+  const consentPending = t.consent?.status === "pending" || s === "AwaitingAgentConsent";
+  const provisional = t.tradeId.startsWith("pending-");
   return [
     { title: "Quote accepted", sub: `RFQ ${t.rfqId.slice(0, 10)}…`, state: "done" },
-    { title: "Instruction on-chain", sub: `#${t.tradeId} · engine`, state: "done" },
+    { title: "Arranger consent", sub: consentPending ? "awaiting the arranger" : t.consent ? `${t.consent.auto ? "automation" : "arranger"} ${t.consent.grantedAt ? ago(t.consent.grantedAt) : ""}` : "recorded", state: consentPending ? "active" : "done" },
+    { title: "Instruction on-chain", sub: provisional ? "after consent" : `#${t.tradeId} · engine`, state: provisional ? "pending" : "done" },
     {
       title: "Desk approvals",
       sub: `${t.approvals.seller.signatures ?? 0}/${t.approvals.seller.threshold ?? 2} seller · ${t.approvals.buyer.signatures ?? 0}/${t.approvals.buyer.threshold ?? 2} buyer`,
-      state: bothBroadcast || scheduled || settled || failed ? "done" : cancelled ? "failed" : "active",
+      state: bothBroadcast || scheduled || settled || failed ? "done" : cancelled ? "failed" : provisional ? "pending" : "active",
     },
     {
       title: "Scheduled",
@@ -52,14 +56,15 @@ export function lifecycle(t: TradeView): { title: string; sub?: string; state: S
 
 export function TradeCard({ t, names, onOpenApprovals }: { t: TradeView; names: Record<string, string>; onOpenApprovals?: () => void }) {
   const tone = t.state === "Settled" ? "ok" : t.state === "Failed" || t.state === "Cancelled" ? "bad" : t.state === "Scheduled" ? "sky" : "warn";
+  const label = t.state === "AwaitingAgentConsent" ? "Awaiting arranger consent" : t.state === "AwaitingApprovals" ? "Awaiting desk approvals" : (t.state ?? "AwaitingApprovals");
   return (
-    <div className="card p-5">
+    <div className="card p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <Pill tone={tone} live={t.state === "Scheduled" || t.state === "AwaitingApprovals"}>{t.state ?? "AwaitingApprovals"}</Pill>
+            <Pill tone={tone} live={t.state === "Scheduled" || t.state === "AwaitingApprovals" || t.state === "AwaitingAgentConsent"}>{label}</Pill>
             <span className="h2">
-              Trade #{t.tradeId} · {par(t.par)} par @ {t.price}
+              {t.tradeId.startsWith("pending-") ? "Assignment" : `Trade #${t.tradeId}`} · {par(t.par)} par @ {t.price}
             </span>
           </div>
           <div className="mt-1 text-sm text-ink-muted">
@@ -78,13 +83,15 @@ export function TradeCard({ t, names, onOpenApprovals }: { t: TradeView; names: 
           </div>
         </div>
       </div>
-      <div className="mt-4">
+      <div className="mt-6">
         <Steps items={lifecycle(t)} />
       </div>
-      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-muted">
-        <span>
-          Instruction <Receipt href={`${HASHSCAN}/transaction/${t.createTx}`} />
-        </span>
+      <div className="mt-5 pt-4 border-t border-line flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-ink-muted">
+        {t.createTx && (
+          <span>
+            Instruction <Receipt href={`${HASHSCAN}/transaction/${t.createTx}`} />
+          </span>
+        )}
         {t.approvals.seller.txHash && (
           <span>
             Seller approval <Receipt href={`${HASHSCAN}/transaction/${t.approvals.seller.txHash}`} />
@@ -101,8 +108,8 @@ export function TradeCard({ t, names, onOpenApprovals }: { t: TradeView; names: 
           </span>
         )}
         {t.failureReason && <span className="text-bad">reason {t.failureReason.slice(0, 10)}…</span>}
-        <span className="mono">hash {t.instructionHash.slice(0, 10)}…</span>
-        {onOpenApprovals && (t.state === "AwaitingApprovals" || !t.state) && (
+        {t.instructionHash && <span className="mono">hash {t.instructionHash.slice(0, 10)}…</span>}
+        {onOpenApprovals && t.state === "AwaitingApprovals" && (
           <button className="btn btn-ghost btn-sm ml-auto" onClick={onOpenApprovals}>
             Open approvals →
           </button>

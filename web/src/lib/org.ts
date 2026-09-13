@@ -1,7 +1,5 @@
 
-import fs from "node:fs";
-import path from "node:path";
-import { dataDir } from "./data-dir";
+import { jsonStore } from "./store";
 
 /**
  * Institution directory for the demo. In production this is a proper database; here it is a JSON
@@ -26,25 +24,25 @@ export interface Institution {
   wallet?: { id: string; address: string };
   /** Privy policy restricting the desk wallet to the settlement venue contracts. */
   policyId?: string;
+  /** Automated liquidity desk: the quorum is two server-held keys, so it quotes, accepts and approves without people. */
+  automated?: boolean;
+  /** Self-service desk created at a judge's first sign-in. */
+  selfService?: boolean;
+  createdAt?: number;
 }
 
 export interface OrgFile {
   institutions: Institution[];
 }
 
-const file = path.join(dataDir(), "org.json");
+const store = jsonStore<OrgFile>("org", { institutions: [] });
 
 export function readOrg(): OrgFile {
-  if (!fs.existsSync(file)) return { institutions: [] };
-  return JSON.parse(fs.readFileSync(file, "utf8"));
+  return store.read();
 }
 
 export function writeOrg(mutate: (o: OrgFile) => void): OrgFile {
-  const o = readOrg();
-  mutate(o);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify(o, null, 2) + "\n");
-  return o;
+  return store.write(mutate);
 }
 
 export function findMember(o: OrgFile, privyUserId: string): { institution: Institution; member: Member } | null {

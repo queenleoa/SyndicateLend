@@ -4,6 +4,8 @@
  */
 import { config } from "dotenv";
 config({ path: new URL("../../.env", import.meta.url).pathname });
+const { hydrate, flush } = await import("../src/lib/store");
+await hydrate();
 const [, , id, name, trader, compliance, pm] = process.argv;
 if (!pm) throw new Error("usage: provision.ts <id> <name> <trader@> <compliance@> <pm@>");
 const { provisionInstitution } = await import("../src/lib/provision");
@@ -17,3 +19,4 @@ const inst = await provisionInstitution({
   ],
 });
 console.log(JSON.stringify(inst, null, 2));
+await flush();

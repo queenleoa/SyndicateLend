@@ -6,10 +6,12 @@ import { PageHeader, Stat, Receipt, HASHSCAN, money, par, short, Empty, Pill } f
 import { TradeCard, type TradeView } from "./trade-lifecycle";
 
 type Payload = {
-  institution: { id: string; name: string; wallet: { id: string; address: string } | null; hedera: Record<string, unknown> & { accountId?: string; allocatedPar?: string; usdFunded?: string } };
+  observer?: boolean;
+  institution: null | { id: string; name: string; wallet: { id: string; address: string } | null; hedera: Record<string, unknown> & { accountId?: string; allocatedPar?: string; usdFunded?: string } };
   balances: { hbar: string; par: string; usd: string; loanAllowance: string; usdAllowance: string; hashscan: string } | null;
   trades: TradeView[];
   names: Record<string, string>;
+  accruals: { facilityId: string; periodId: number; days: string; commitment: string; amountUnits: string | null; paid: { accountId: string; amountUnits: string } | null; skipped: string | null; payoutLink: string | null }[];
 };
 
 export function Portfolio() {
@@ -21,19 +23,28 @@ export function Portfolio() {
   }, [api]);
   if (err) return <p className="text-sm text-bad">{err}</p>;
   if (!d) return <p className="text-sm text-ink-muted">Loading…</p>;
+  if (d.observer || !d.institution) {
+    return (
+      <div>
+        <PageHeader title="Portfolio" sub="Positions and cash of the institution you belong to." />
+        <Empty title="No desk yet">Sign in again once your institution has been created.</Empty>
+      </div>
+    );
+  }
+  const inst = d.institution;
   const b = d.balances;
-  const bought = d.trades.filter((t) => t.state === "Settled" && t.buyer.institution === d.institution.id).reduce((a, t) => a + Number(t.par), 0);
-  const sold = d.trades.filter((t) => t.state === "Settled" && t.seller.institution === d.institution.id).reduce((a, t) => a + Number(t.par), 0);
+  const bought = d.trades.filter((t) => t.state === "Settled" && t.buyer.institution === inst.id).reduce((a, t) => a + Number(t.par), 0);
+  const sold = d.trades.filter((t) => t.state === "Settled" && t.seller.institution === inst.id).reduce((a, t) => a + Number(t.par), 0);
   const standing = b && BigInt(b.loanAllowance) > 0n && BigInt(b.usdAllowance) > 0n;
   return (
     <div>
       <PageHeader
-        title="Portfolio"
+        title="My positions"
         sub={
-          d.institution.wallet ? (
+          inst.wallet ? (
             <>
-              {d.institution.name} · desk wallet <Receipt href={`${HASHSCAN}/account/${d.institution.wallet.address}`}>{short(d.institution.wallet.address, 8, 6)}</Receipt>
-              {d.institution.hedera?.accountId && <> · Hedera account {d.institution.hedera.accountId}</>}
+              {inst.name} · desk wallet <Receipt href={`${HASHSCAN}/account/${inst.wallet.address}`}>{short(inst.wallet.address, 8, 6)}</Receipt>
+              {inst.hedera?.accountId && <> · Hedera account {inst.hedera.accountId}</>}
             </>
           ) : (
             "No desk wallet provisioned"
@@ -41,7 +52,7 @@ export function Portfolio() {
         }
       />
       {b ? (
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-4 gap-4">
           <Stat k="MHTLB-A position (US$ par)" v={par(b.par)} sub="on the ATS register" />
           <Stat k="Mock USD" v={`$${money(b.usd)}`} sub="HTS permissioned cash" />
           <Stat k="HBAR" v={(Number(b.hbar) / 1e18).toFixed(2)} sub="network fees" />
@@ -54,16 +65,40 @@ export function Portfolio() {
       ) : (
         <Empty title="No balances">Provision a desk wallet in administration first.</Empty>
       )}
-      <div className="grid grid-cols-2 gap-3 mt-3">
+      <div className="grid grid-cols-2 gap-4 mt-4">
         <Stat k="Bought (settled par)" v={par(bought)} />
         <Stat k="Sold (settled par)" v={par(sold)} />
       </div>
-      <section className="mt-8">
-        <h2 className="h2 mb-2">Desk trades</h2>
+      <section className="mt-10">
+        <h2 className="h2 mb-3">Interest accruals</h2>
+        {d.accruals.length === 0 ? (
+          <Empty title="No accrual period computed yet">The arranger publishes a rate-notice commitment and the confidential workflow computes each holder&apos;s share.</Empty>
+        ) : (
+          <div className="card-flat overflow-x-auto">
+            <table className="grid">
+              <thead><tr><th>Period</th><th>Days</th><th className="td-right">Accrued (mUSD)</th><th>Payout</th><th>Commitment</th></tr></thead>
+              <tbody>
+                {d.accruals.map((a) => (
+                  <tr key={a.periodId}>
+                    <td>{a.facilityId} · period {a.periodId}</td>
+                    <td className="num">{a.days}</td>
+                    <td className="td-right num">{a.amountUnits ? money(a.amountUnits) : "not in snapshot"}</td>
+                    <td>{a.paid ? <span className="flex items-center gap-2"><Pill tone="ok">paid {money(a.paid.amountUnits)}</Pill>{a.payoutLink && <Receipt href={a.payoutLink}>HTS</Receipt>}</span> : a.skipped ? <Pill tone="warn">{a.skipped}</Pill> : a.amountUnits && a.amountUnits !== "0" ? <Pill tone="warn">not paid yet</Pill> : <Pill>nothing due</Pill>}</td>
+                    <td className="mono text-xs" title={a.commitment}>{short(a.commitment, 10, 6)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="mt-10">
+        <h2 className="h2 mb-3">My trades</h2>
         {d.trades.length === 0 ? (
           <Empty title="No trades for this desk yet" />
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {d.trades.map((t) => (
               <TradeCard key={t.tradeId} t={t} names={d.names} />
             ))}

@@ -1,15 +1,21 @@
+import { after } from "next/server";
 import { jsonError } from "@/lib/privy-server";
-import { requireDesk, requireRole } from "@/lib/desk-auth";
+import { marketTick } from "@/lib/automated-desk";
+import { optionalDesk, requireDesk, requireRole } from "@/lib/desk-auth";
 import { loadRfqs, newId } from "@/lib/rfq";
 import { publish, hashscanTopic, rfqTopicId } from "@/lib/hcs";
 import { readOrg } from "@/lib/org";
 
+export const maxDuration = 60;
+
 export async function GET(req: Request) {
   try {
-    const d = await requireDesk(req);
+    const d = await optionalDesk(req);
+    after(() => marketTick());
     const { rfqs } = await loadRfqs();
     const names = Object.fromEntries(readOrg().institutions.map((i) => [i.id, i.name]));
-    return Response.json({ me: { userId: d.userId, institution: d.institution.id, role: d.member.role }, names, topic: rfqTopicId(), topicLink: hashscanTopic(), rfqs });
+    const automatedDesk = readOrg().institutions.find((i) => i.automated)?.name ?? null;
+    return Response.json({ me: { userId: d.userId, institution: d.institution?.id ?? null, role: d.member?.role ?? "observer" }, names, automatedDesk, topic: rfqTopicId(), topicLink: hashscanTopic(), rfqs });
   } catch (e) {
     return jsonError(e);
   }

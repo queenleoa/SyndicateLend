@@ -10,6 +10,8 @@
  */
 import { config } from "dotenv";
 config({ path: new URL("../../.env", import.meta.url).pathname });
+const { hydrate, flush } = await import("../src/lib/store");
+await hydrate();
 const ob = await import("../src/lib/onboarding");
 const { readOrg } = await import("../src/lib/org");
 const [, , id, action, arg] = process.argv;
@@ -25,3 +27,4 @@ const out =
   : action === "status" ? { hedera: ob.onboardingOf(readOrg().institutions.find((i) => i.id === id)!), balances: await ob.deskBalances(readOrg().institutions.find((i) => i.id === id)!.wallet!.address) }
   : (() => { throw new Error("unknown action"); })();
 console.log(JSON.stringify(out, null, 2));
+await flush();

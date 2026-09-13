@@ -5,14 +5,17 @@ import { useCallback, useEffect, useState } from "react";
 
 export interface Me {
   userId: string;
-  role: "trader" | "compliance" | "pm" | null;
+  role: "trader" | "compliance" | "pm" | "observer" | null;
   roleLabel?: string;
+  created?: boolean;
+  onboarding?: { ready: boolean; steps: { key: string; label: string; state: "done" | "active" | "pending"; detail?: string; needsDesk?: boolean; intentId?: string }[] };
   institution: {
     id: string;
     name: string;
     wallet: { id: string; address: string } | null;
     keyQuorumId: string | null;
     policyId: string | null;
+    selfService?: boolean;
     members: { email: string; role: string }[];
   } | null;
 }

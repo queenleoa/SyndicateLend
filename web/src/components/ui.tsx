@@ -102,19 +102,19 @@ export function Avatar({ name, tone }: { name: string; tone?: "ok" | "wait" }) {
 
 export function Empty({ title, children }: { title: string; children?: ReactNode }) {
   return (
-    <div className="card-flat p-8 text-center">
+    <div className="card-flat p-10 text-center max-w-2xl mx-auto">
       <div className="h2">{title}</div>
-      {children && <div className="mt-1 text-sm text-ink-muted">{children}</div>}
+      {children && <div className="mt-2 text-sm text-ink-muted leading-relaxed">{children}</div>}
     </div>
   );
 }
 
 export function PageHeader({ title, sub, right }: { title: string; sub?: ReactNode; right?: ReactNode }) {
   return (
-    <div className="flex items-end justify-between gap-4 mb-5">
+    <div className="flex items-end justify-between gap-6 mb-8 pb-5 border-b border-line">
       <div>
         <h1 className="h1">{title}</h1>
-        {sub && <p className="mt-1 text-sm text-ink-muted">{sub}</p>}
+        {sub && <p className="mt-2 text-sm text-ink-muted leading-relaxed">{sub}</p>}
       </div>
       {right}
     </div>

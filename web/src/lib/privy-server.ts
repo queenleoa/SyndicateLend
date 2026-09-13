@@ -1,5 +1,6 @@
 
 import { PrivyClient } from "@privy-io/node";
+import { hydrate } from "./store";
 
 /** Server-side Privy client. The app secret never leaves the server. */
 let client: PrivyClient | null = null;
@@ -29,6 +30,7 @@ export interface Session {
 
 /** Verify the caller's Privy session. Throws on missing/invalid token. */
 export async function requireSession(req: Request): Promise<Session> {
+  await hydrate();
   const token = accessTokenFrom(req);
   if (!token) throw new HttpError(401, "not signed in");
   try {

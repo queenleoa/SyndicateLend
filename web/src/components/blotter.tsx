@@ -8,7 +8,7 @@ import { TradeCard, type TradeView } from "./trade-lifecycle";
 
 type Quote = { quoteId: string; institution: string; price: string; settleAt: number; expiresAt: number; consensusAt: string; sequence: number };
 type Rfq = { rfqId: string; facility: string; side: "sell" | "buy"; par: string; deadline: number; institution: string; consensusAt: string; sequence: number; quotes: Quote[]; status: string; acceptedQuoteId?: string; trade?: TradeView };
-type RfqPayload = { me: { institution: string; role: string }; names: Record<string, string>; topic: string; topicLink: string; rfqs: Rfq[] };
+type RfqPayload = { me: { institution: string | null; role: string }; names: Record<string, string>; automatedDesk: string | null; topic: string; topicLink: string; rfqs: Rfq[] };
 type TradesPayload = { trades: TradeView[]; events: string[] };
 
 export function Blotter() {
@@ -63,10 +63,10 @@ export function Blotter() {
   return (
     <div>
       <PageHeader
-        title="RFQ blotter"
+        title="RFQ trading"
         sub={
           <>
-            Meridian Holdings Term Loan B 2031 · Tranche A (MHTLB-A) · every event anchored on HCS topic{" "}
+            Sell or buy a share of MHTLB-A with another institution: publish a request, take a quote, and the arranger consents before both desks approve and Hedera settles. Every event is anchored on HCS topic{" "}
             <Receipt href={data.topicLink}>{data.topic}</Receipt>
           </>
         }
@@ -81,12 +81,17 @@ export function Blotter() {
       {err && <p className="mb-4 text-sm text-bad">{err}</p>}
 
       <div className="rfq-explainer">
-        <div className="rfq-identity"><span>YOU ARE ACTING FOR</span><strong>{data.names[data.me.institution] ?? data.me.institution}</strong><small>{data.me.role} · eligible institutional desk</small></div>
+        <div className="rfq-identity"><span>{data.me.institution ? "YOU ARE ACTING FOR" : "YOUR ACCESS"}</span><strong>{data.me.institution ? data.names[data.me.institution] ?? data.me.institution : "Observer"}</strong><small>{data.me.institution ? `${data.me.role} · eligible institutional desk` : "read-only · live market tape"}</small></div>
         <div className="rfq-how"><div className="active"><i>1</i><span><strong>Request</strong><small>Seller publishes par, side and deadline</small></span></div><b>→</b><div><i>2</i><span><strong>Price</strong><small>Another eligible institution responds</small></span></div><b>→</b><div><i>3</i><span><strong>Accept</strong><small>Creates immutable settlement economics</small></span></div></div>
         <div className="rfq-tape"><i /><span>HCS MARKET TAPE</span><strong>{data.topic}</strong><small>ordered and timestamped</small></div>
       </div>
+      {data.automatedDesk && (
+        <p className="mb-6 text-sm text-ink-muted leading-relaxed">
+          <strong className="text-ink">{data.automatedDesk}</strong> is an automated liquidity desk: it quotes any open request within a minute, keeps a buy and a sell request of its own open, accepts the best quote it receives, and approves its side of every trade with two server-held keys. Your desk still approves its own side with two of your three members.
+        </p>
+      )}
 
-      <div className="grid grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-4 gap-4 mb-8">
         <Stat k="Open RFQs" v={open.length} />
         <Stat k="Trades in flight" v={live.length} sub="awaiting approvals or scheduled" />
         <Stat k="Settled par" v={par(settledPar)} sub="US$ par, atomically" />
@@ -96,7 +101,7 @@ export function Blotter() {
       {showNew && <NewRfq busy={busy} onSubmit={(b) => act("new", () => api("/api/rfqs", { method: "POST", body: JSON.stringify(b) })).then(() => setShowNew(false))} />}
 
       <section className="mt-2">
-        <h2 className="h2 mb-2">Requests for quote</h2>
+        <h2 className="h2 mb-3">Requests for quote</h2>
         {data.rfqs.length === 0 ? (
           <Empty title="No RFQs yet">A seller publishes an RFQ; eligible desks respond with a price; the seller accepts one and the instruction is created on-chain.</Empty>
         ) : (
@@ -186,12 +191,12 @@ export function Blotter() {
         )}
       </section>
 
-      <section className="mt-8">
-        <h2 className="h2 mb-2">Trades</h2>
+      <section className="mt-10">
+        <h2 className="h2 mb-3">Trades</h2>
         {trades.length === 0 ? (
           <Empty title="No trades yet">Accepting a quote creates the settlement instruction and asks both desks for approval.</Empty>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {[...live, ...done].map((t) => (
               <TradeCard key={t.tradeId} t={t} names={data.names} onOpenApprovals={() => router.push("/approvals")} />
             ))}

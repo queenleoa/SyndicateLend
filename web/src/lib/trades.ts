@@ -16,7 +16,17 @@ export interface DeskApproval {
   broadcastError?: string;
 }
 
+/** Arranger (administrative agent) consent to the assignment. Granted by a platform admin in the registry, or by the arranger automation after a delay. */
+export interface AgentConsent {
+  status: "pending" | "granted";
+  requestedAt: number;
+  grantedAt?: number;
+  grantedBy?: string;
+  auto?: boolean;
+}
+
 export interface TradeRecord {
+  /** On-chain instruction id once the arranger has consented; before that a provisional `pending-…` id. */
   tradeId: string;
   rfqId: string;
   quoteId: string;
@@ -31,6 +41,7 @@ export interface TradeRecord {
   settleAt: number;
   expiresAt: number;
   approvals: { seller: DeskApproval; buyer: DeskApproval };
+  consent?: AgentConsent;
   /** engine state snapshot */
   state?: string;
   scheduleAddress?: string;

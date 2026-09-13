@@ -9,7 +9,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     const { id } = await ctx.params;
     const t = findTrade(id);
     if (!t) throw new HttpError(404, "trade not found");
-    const onchain = await getTrade(id).catch(() => null);
+    const onchain = id.startsWith("pending-") ? null : await getTrade(id).catch(() => null);
     return Response.json({ trade: t, onchain });
   } catch (e) {
     return jsonError(e);

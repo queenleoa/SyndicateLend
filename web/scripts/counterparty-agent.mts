@@ -10,6 +10,8 @@
  */
 import { config } from "dotenv";
 config({ path: new URL("../../.env", import.meta.url).pathname });
+const { hydrate, flush } = await import("../src/lib/store");
+await hydrate();
 
 const args = new Map<string, string>();
 for (let i = 2; i < process.argv.length; i++) {
@@ -54,9 +56,10 @@ async function quoteOpenRfqs() {
     });
     console.log(`[counterparty] quoted ${quoteId} @ ${basePrice.toFixed(2)} · HCS sequence ${receipt.sequence} · ${receipt.status}`);
   }
-  if (once) process.exit(0);
+  if (once) await flush();
+process.exit(0);
 }
 
 await quoteOpenRfqs();
 const timer = setInterval(() => quoteOpenRfqs().catch((e) => console.error(`[counterparty] ${e.message}`)), 4_000);
-for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => { clearInterval(timer); console.log("\n[counterparty] disconnected"); process.exit(0); });
+for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => { clearInterval(timer); console.log("\n[counterparty] disconnected"); void flush().finally(() => process.exit(0)); });

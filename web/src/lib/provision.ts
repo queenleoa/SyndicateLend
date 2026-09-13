@@ -30,14 +30,40 @@ export async function provisionInstitution(input: { id: string; name: string; me
 
   // 2. quorum
   const quorum = await p.keyQuorums().create({
-    display_name: `${input.name} desk quorum (2 of 3)`,
+    display_name: `${input.name} desk quorum (2 of 3)`.slice(0, 50),
     user_ids: members.map((m) => m.privyUserId!),
     authorization_threshold: 2,
   });
 
   // 3. policy: settlement venue only, on Hedera testnet; owned by the quorum so changing it
-  //    also needs two approvals. Created before the wallet so it can be attached at creation
-  //    (updating a quorum-owned wallet later would itself require quorum authorisation).
+  //    also needs two approvals. Created before the wallet so it can be attached at creation.
+  const policy = await createVenuePolicy(input.name, quorum.id);
+
+  // 4. wallet owned by the quorum, governed by the policy: no single person can move it
+  const wallet = await p.wallets().create({
+    chain_type: "ethereum",
+    display_name: `${input.name} desk wallet`.slice(0, 50),
+    owner_id: quorum.id,
+    policy_ids: [policy.id],
+  });
+
+  const institution: Institution = {
+    id: input.id,
+    name: input.name,
+    members,
+    keyQuorumId: quorum.id,
+    wallet: { id: wallet.id, address: wallet.address },
+    policyId: policy.id,
+  };
+  writeOrg((o) => {
+    o.institutions = o.institutions.filter((i) => i.id !== input.id);
+    o.institutions.push(institution);
+  });
+  return institution;
+}
+
+/** Wallet policy: the desk may only call the settlement venue contracts on Hedera testnet, never export its key. */
+export async function createVenuePolicy(name: string, ownerId: string) {
   const v = venue();
   const engineAbi = [
     { type: "function", name: "approve", stateMutability: "nonpayable", inputs: [{ name: "tradeId", type: "uint256" }, { name: "instructionHash", type: "bytes32" }], outputs: [] },
@@ -52,11 +78,11 @@ export async function provisionInstitution(input: { id: string; name: string; me
   const hrc719Abi = [{ type: "function", name: "associate", stateMutability: "nonpayable", inputs: [], outputs: [{ name: "", type: "uint256" }] }] as const;
   // Privy evaluates DENY before ALLOW and denies anything no rule allows, so there is no
   // catch-all deny rule: only the two allow rules below (and an explicit export ban) exist.
-  const policy = await p.policies().create({
+  return privy().policies().create({
     version: "1.0",
     chain_type: "ethereum",
-    name: `${input.name}: settlement venue only`,
-    owner_id: quorum.id,
+    name: `${name}: settlement venue only`,
+    owner_id: ownerId,
     rules: [
       {
         name: "Engine: approve, cancel, reissue (Hedera 296)",
@@ -96,22 +122,19 @@ export async function provisionInstitution(input: { id: string; name: string; me
     ],
   });
 
-  // 4. wallet owned by the quorum, governed by the policy: no single person can move it
-  const wallet = await p.wallets().create({
-    chain_type: "ethereum",
-    display_name: `${input.name} desk wallet`,
-    owner_id: quorum.id,
-    policy_ids: [policy.id],
-  });
+}
 
-  const institution: Institution = {
-    id: input.id,
-    name: input.name,
-    members,
-    keyQuorumId: quorum.id,
-    wallet: { id: wallet.id, address: wallet.address },
-    policyId: policy.id,
-  };
+/**
+ * Automated liquidity desk: a quorum of two server-held P-256 keys (threshold 2) instead of people.
+ * The venue signs its intents with both keys, so this desk can quote, accept and approve unattended.
+ * `publicKeys` are the SPKI DER base64 forms of AUTOMATED_DESK_KEYS.
+ */
+export async function provisionAutomatedDesk(input: { id: string; name: string; publicKeys: string[] }) {
+  const p = privy();
+  const quorum = await p.keyQuorums().create({ display_name: `${input.name} automated quorum`.slice(0, 50), public_keys: input.publicKeys, authorization_threshold: 2 });
+  const policy = await createVenuePolicy(input.name, quorum.id);
+  const wallet = await p.wallets().create({ chain_type: "ethereum", display_name: `${input.name} desk wallet`.slice(0, 50), owner_id: quorum.id, policy_ids: [policy.id] });
+  const institution: Institution = { id: input.id, name: input.name, members: [], keyQuorumId: quorum.id, wallet: { id: wallet.id, address: wallet.address }, policyId: policy.id, automated: true, createdAt: Date.now() };
   writeOrg((o) => {
     o.institutions = o.institutions.filter((i) => i.id !== input.id);
     o.institutions.push(institution);

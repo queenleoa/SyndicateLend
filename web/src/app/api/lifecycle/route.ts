@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { requireDesk } from "@/lib/desk-auth";
+import { optionalDesk } from "@/lib/desk-auth";
 import { jsonError } from "@/lib/privy-server";
 import { notices } from "@/lib/notices";
 
@@ -12,7 +12,7 @@ function readJson<T>(file: string): T | null {
 
 export async function GET(req: Request) {
   try {
-    await requireDesk(req);
+    await optionalDesk(req);
     const deployment = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), "../ops/deployments/testnet.json"), "utf8"));
     const publicNotices = notices.read().notices.map((n) => ({ facilityId: n.facilityId, periodId: n.periodId, periodStart: n.periodStart, periodEnd: n.periodEnd, holders: n.holders, commitment: n.commitment, createdAt: n.createdAt, hcs: n.hcs })).sort((a, b) => b.periodId - a.periodId);
     const evidenceDir = path.resolve(process.cwd(), "../cre/evidence");

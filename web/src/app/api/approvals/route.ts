@@ -13,6 +13,7 @@ function requireDesk(userId: string) {
 export async function GET(req: Request) {
   try {
     const s = await requireSession(req);
+    if (!findMember(readOrg(), s.userId)) return Response.json({ observer: true, institution: null, me: { userId: s.userId, role: "observer" }, intents: [] });
     const { institution, member } = requireDesk(s.userId);
     const intents = await listWalletIntents(institution.wallet!.id);
     return Response.json({ institution: { id: institution.id, name: institution.name, wallet: institution.wallet, members: institution.members.map((m) => ({ email: m.email, role: m.role, privyUserId: m.privyUserId })) }, me: { userId: s.userId, role: member.role }, intents });

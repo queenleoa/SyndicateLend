@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useAuthorizationSignature } from "@privy-io/react-auth";
-import { useApi } from "@/lib/use-me";
+import { useApi, useMe } from "@/lib/use-me";
 import { PageHeader, Pill, Ring, Avatar, Empty, Receipt, HASHSCAN, when, ago, short } from "./ui";
 
 type Member = { email: string; role: string; privyUserId?: string };
@@ -17,6 +17,7 @@ type Intent = {
   action_result?: { status_code: number; executed_at: number; response_body?: { data?: { signed_transaction?: string } } };
 };
 type Payload = {
+  observer?: boolean;
   institution: { id: string; name: string; wallet: { id: string; address: string }; members: Member[] };
   me: { userId: string; role: string };
   intents: Intent[];
@@ -56,6 +57,7 @@ export function ApprovalsInbox() {
   const [showDone, setShowDone] = useState(false);
   const { generateAuthorizationSignature } = useAuthorizationSignature();
 
+  const { me, reload: reloadMe } = useMe();
   const load = useCallback(() => api("/api/approvals").then(setData).catch((e) => setErr(e.message)), [api]);
   useEffect(() => {
     load();
@@ -63,6 +65,37 @@ export function ApprovalsInbox() {
     const t = setInterval(load, 8000);
     return () => clearInterval(t);
   }, [load, api]);
+
+  async function signAll(ids: string[]) {
+    setBusy("all");
+    setErr(null);
+    try {
+      for (const id of ids) {
+        const { payloads, timestamp } = (await api(`/api/approvals/${id}/payload`)) as { payloads: string[]; timestamp: number };
+        let lastErr: Error | null = null;
+        for (const b64 of payloads) {
+          const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+          const { signature } = await generateAuthorizationSignature(bytes);
+          try {
+            await api(`/api/approvals/${id}/authorize`, { method: "POST", body: JSON.stringify({ signature, timestamp }) });
+            lastErr = null;
+            break;
+          } catch (e) {
+            lastErr = e as Error;
+            if (!/signature/i.test(lastErr.message)) break;
+          }
+        }
+        if (lastErr) throw lastErr;
+      }
+      await load();
+      reloadMe();
+      api("/api/trades?sync=1").catch(() => {});
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function act(id: string, action: "authorize" | "reject") {
     setBusy(id + action);
@@ -99,6 +132,16 @@ export function ApprovalsInbox() {
 
   if (err && !data) return <p className="text-sm text-bad">{err}</p>;
   if (!data) return <p className="text-sm text-ink-muted">Loading…</p>;
+  if (data.observer) {
+    return (
+      <div>
+        <PageHeader title="Approvals" sub="Each institution's desk wallet is owned by a 2-of-3 quorum of named staff." />
+        <Empty title="Approvals belong to a desk">
+          A trader proposes an action; two of the three members must sign it in their own sessions before Privy signs the transaction and the venue broadcasts it to Hedera. Observers can follow the outcome on the blotter, where every approval links to its Hedera receipt.
+        </Empty>
+      </div>
+    );
+  }
 
   const bare = (id?: string) => (id ?? "").replace(/^did:privy:/, "");
   const memberByUser = new Map(data.institution.members.map((m) => [bare(m.privyUserId), m]));
@@ -110,11 +153,11 @@ export function ApprovalsInbox() {
   return (
     <div>
       <PageHeader
-        title="Approvals"
+        title={`${data.institution.name}: desk approvals`}
         sub={
           <>
-            {data.institution.name} desk wallet <Receipt href={`${HASHSCAN}/account/${data.institution.wallet.address}`}>{short(data.institution.wallet.address, 8, 6)}</Receipt> is owned by a{" "}
-            <strong>2-of-3 quorum</strong> of named people. You are the <strong>{ROLE[data.me.role] ?? data.me.role}</strong>.
+            Only <strong>your own desk&apos;s</strong> actions appear here; the counterparty approves on its side. The desk wallet <Receipt href={`${HASHSCAN}/account/${data.institution.wallet.address}`}>{short(data.institution.wallet.address, 8, 6)}</Receipt> is owned by a{" "}
+            <strong>2-of-{data.institution.members.filter((m) => (m as Member & { quorumMember?: boolean }).quorumMember !== false).length} quorum</strong> of named people. You are the <strong>{ROLE[data.me.role] ?? data.me.role}</strong>.
           </>
         }
         right={
@@ -125,7 +168,7 @@ export function ApprovalsInbox() {
       />
       {err && <p className="mb-4 text-sm text-bad">{err}</p>}
 
-      <div className="panel-dark p-4 mb-6 grid grid-cols-[auto_1fr] gap-4 items-center">
+      <div className="panel-dark p-5 mb-8 grid grid-cols-[auto_1fr] gap-5 items-center">
         <div className="flex -space-x-1.5">
           {data.institution.members.map((m) => (
             <Avatar key={m.email} name={m.email} />
@@ -136,17 +179,42 @@ export function ApprovalsInbox() {
         </div>
       </div>
 
+      {me?.onboarding && !me.onboarding.ready && (
+        <section className="card p-6 mb-8">
+          <div className="flex items-start justify-between gap-6">
+            <div>
+              <div className="label">Desk onboarding</div>
+              <h2 className="h2 mt-1">Getting {data.institution.name} onto the register</h2>
+              <p className="mt-2 text-sm text-ink-muted leading-relaxed">
+                The operator steps run by themselves. The three desk-signed steps need <strong>two of your three quorum members</strong>. Sign them all as the {ROLE[data.me.role] ?? data.me.role}, then sign out and sign in as{" "}
+                <strong>{data.institution.members.find((m) => m.role === "compliance")?.email}</strong> (the one-time code arrives in the same inbox) and sign them again.
+              </p>
+            </div>
+            {(() => { const unsigned = open.filter((it) => !iSigned(it)).map((it) => it.intent_id); return unsigned.length > 0 && <button className="btn btn-primary" disabled={busy !== null} onClick={() => signAll(unsigned)}>{busy === "all" ? "Signing…" : `Sign all ${unsigned.length} as ${ROLE[data.me.role] ?? data.me.role}`}</button>; })()}
+          </div>
+          <ol className="onboarding-steps mt-5">
+            {me.onboarding.steps.map((st) => (
+              <li key={st.key} className={`onboarding-step ${st.state}`}>
+                <i>{st.state === "done" ? "✓" : st.state === "active" ? "•" : ""}</i>
+                <div><strong>{st.label}</strong>{st.detail && <small>{st.detail}</small>}</div>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+
       {open.length === 0 ? (
         <Empty title="Nothing waiting for the desk">Accepting a quote on the blotter, or onboarding steps from administration, create the next approval.</Empty>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
+          {(() => { const unsigned = open.filter((it) => !iSigned(it)).map((it) => it.intent_id); return unsigned.length > 1 && <div className="flex justify-end"><button className="btn btn-secondary btn-sm" disabled={busy !== null} onClick={() => signAll(unsigned)}>{busy === "all" ? "Signing…" : `Sign all ${unsigned.length}`}</button></div>; })()}
           {open.map((it) => (
             <IntentCard key={it.intent_id} it={it} venue={venue} memberByUser={memberByUser} bare={bare} iSigned={iSigned(it)} busy={busy} canReject={canReject} onAct={act} />
           ))}
         </div>
       )}
 
-      <div className="mt-8 flex items-center justify-between">
+      <div className="mt-10 flex items-center justify-between">
         <h2 className="h2">History</h2>
         <button className="btn btn-ghost btn-sm" onClick={() => setShowDone((v) => !v)}>
           {showDone ? "Hide" : `Show ${closed.length}`}

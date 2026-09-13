@@ -87,7 +87,11 @@ export async function submitIntentSignature(intentId: string, signature: string,
 }
 
 export async function rejectIntent(intentId: string) {
-  return privy().intents().reject(intentId);
+  // The SDK's reject sends no body and Privy answers 415; call the endpoint with an empty JSON object.
+  const res = await fetch(`${API}/intents/${intentId}/reject`, { method: "POST", headers: basicAuth(), body: "{}" });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`reject failed: ${JSON.stringify(json)}`);
+  return json;
 }
 
 export async function listWalletIntents(walletId: string) {

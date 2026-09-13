@@ -66,7 +66,12 @@ export function newId(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
-/** Accepting a quote: create the on-chain instruction and propose an approval to each desk. */
+/**
+ * Accepting a quote records the assignment and asks the arranger for consent. Nothing touches the
+ * engine yet: in the market the administrative agent processes an assignment before it settles, and
+ * here that step is explicit (a platform admin consents in the registry, or the arranger automation
+ * does after AGENT_CONSENT_DELAY_S).
+ */
 export async function acceptQuote(rfq: Rfq, quote: Quote, acceptedBy: string) {
   const org = readOrg();
   const sellerInst = org.institutions.find((i) => i.id === (rfq.side === "sell" ? rfq.institution : quote.institution));
@@ -81,20 +86,13 @@ export async function acceptQuote(rfq: Rfq, quote: Quote, acceptedBy: string) {
 
   await publish({ type: "accept", rfqId: rfq.rfqId, quoteId: quote.quoteId, institution: sellerInst.id, by: acceptedBy });
 
-  const created = await createInstruction({ buyer: buyerInst.wallet.address, seller: sellerInst.wallet.address, par, cash, settleAt, expiresAt, rfqRef: rfqRef(rfq.rfqId, quote.quoteId) });
-  await publish({ type: "instruction", rfqId: rfq.rfqId, quoteId: quote.quoteId, tradeId: created.tradeId, instructionHash: created.instructionHash, engine: venue().settlementEngine, txHash: created.txHash });
-
-  const data = approveCalldata(created.tradeId, created.instructionHash);
-  const sellerIntent = await proposeDeskTx({ walletId: sellerInst.wallet.id, walletAddress: sellerInst.wallet.address, to: venue().settlementEngine, data, gasLimit: 2_500_000 });
-  const buyerIntent = await proposeDeskTx({ walletId: buyerInst.wallet.id, walletAddress: buyerInst.wallet.address, to: venue().settlementEngine, data, gasLimit: 2_500_000 });
-
   const now = Date.now();
   const record: TradeRecord = {
-    tradeId: created.tradeId,
+    tradeId: `pending-${quote.quoteId}`,
     rfqId: rfq.rfqId,
     quoteId: quote.quoteId,
-    instructionHash: created.instructionHash,
-    createTx: created.txHash,
+    instructionHash: "",
+    createTx: "",
     facility: rfq.facility,
     seller: { institution: sellerInst.id, wallet: sellerInst.wallet.address },
     buyer: { institution: buyerInst.id, wallet: buyerInst.wallet.address },
@@ -104,10 +102,11 @@ export async function acceptQuote(rfq: Rfq, quote: Quote, acceptedBy: string) {
     settleAt,
     expiresAt,
     approvals: {
-      seller: { institution: sellerInst.id, wallet: sellerInst.wallet.address, intentId: sellerIntent.intent_id, proposedAt: now, intentStatus: sellerIntent.status, threshold: sellerIntent.authorization_details[0]?.threshold, signatures: 0 },
-      buyer: { institution: buyerInst.id, wallet: buyerInst.wallet.address, intentId: buyerIntent.intent_id, proposedAt: now, intentStatus: buyerIntent.status, threshold: buyerIntent.authorization_details[0]?.threshold, signatures: 0 },
+      seller: { institution: sellerInst.id, wallet: sellerInst.wallet.address, intentId: "", proposedAt: 0 },
+      buyer: { institution: buyerInst.id, wallet: buyerInst.wallet.address, intentId: "", proposedAt: 0 },
     },
-    state: "AwaitingApprovals",
+    consent: { status: "pending", requestedAt: now },
+    state: "AwaitingAgentConsent",
     createdAt: now,
     updatedAt: now,
   };
@@ -115,12 +114,45 @@ export async function acceptQuote(rfq: Rfq, quote: Quote, acceptedBy: string) {
   return record;
 }
 
+/** The arranger consents: the instruction goes on-chain and each desk is asked to approve it. */
+export async function grantConsent(provisionalTradeId: string, grantedBy: string, auto = false) {
+  const t = trades.read().trades.find((x) => x.tradeId === provisionalTradeId);
+  if (!t) throw new Error("assignment not found");
+  if (t.consent?.status === "granted" || !t.tradeId.startsWith("pending-")) return t;
+  const org = readOrg();
+  const sellerInst = org.institutions.find((i) => i.id === t.seller.institution)!;
+  const buyerInst = org.institutions.find((i) => i.id === t.buyer.institution)!;
+  const par = BigInt(t.par);
+  const cash = BigInt(t.cash);
+  const created = await createInstruction({ buyer: t.buyer.wallet, seller: t.seller.wallet, par, cash, settleAt: t.settleAt, expiresAt: t.expiresAt, rfqRef: rfqRef(t.rfqId, t.quoteId) });
+  await publish({ type: "instruction", rfqId: t.rfqId, quoteId: t.quoteId, tradeId: created.tradeId, instructionHash: created.instructionHash, engine: venue().settlementEngine, txHash: created.txHash });
+  const data = approveCalldata(created.tradeId, created.instructionHash);
+  const sellerIntent = await proposeDeskTx({ walletId: sellerInst.wallet!.id, walletAddress: sellerInst.wallet!.address, to: venue().settlementEngine, data, gasLimit: 2_500_000 });
+  const buyerIntent = await proposeDeskTx({ walletId: buyerInst.wallet!.id, walletAddress: buyerInst.wallet!.address, to: venue().settlementEngine, data, gasLimit: 2_500_000 });
+  const now = Date.now();
+  const updated: TradeRecord = {
+    ...t,
+    tradeId: created.tradeId,
+    instructionHash: created.instructionHash,
+    createTx: created.txHash,
+    approvals: {
+      seller: { institution: sellerInst.id, wallet: sellerInst.wallet!.address, intentId: sellerIntent.intent_id, proposedAt: now, intentStatus: sellerIntent.status, threshold: sellerIntent.authorization_details[0]?.threshold, signatures: 0 },
+      buyer: { institution: buyerInst.id, wallet: buyerInst.wallet!.address, intentId: buyerIntent.intent_id, proposedAt: now, intentStatus: buyerIntent.status, threshold: buyerIntent.authorization_details[0]?.threshold, signatures: 0 },
+    },
+    consent: { status: "granted", requestedAt: t.consent?.requestedAt ?? t.createdAt, grantedAt: now, grantedBy, auto },
+    state: "AwaitingApprovals",
+    updatedAt: now,
+  };
+  trades.write((s) => { const i = s.trades.findIndex((x) => x.tradeId === provisionalTradeId); if (i >= 0) s.trades[i] = updated; });
+  return updated;
+}
+
 /**
  * Reconcile every open trade: pull intent progress from Privy, broadcast executed approvals to
  * Hedera in order, refresh engine state, and anchor state changes on the HCS topic.
  */
 export async function syncTrades() {
-  const open = trades.read().trades.filter((t) => !["Settled", "Cancelled"].includes(t.state ?? ""));
+  const open = trades.read().trades.filter((t) => !["Settled", "Cancelled", "AwaitingAgentConsent"].includes(t.state ?? "") && !t.tradeId.startsWith("pending-"));
   const events: string[] = [];
   for (const t of open) {
     for (const side of ["seller", "buyer"] as const) {

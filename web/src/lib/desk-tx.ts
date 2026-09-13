@@ -8,18 +8,31 @@ import { trades } from "./trades";
  * signed RLP transaction, then broadcast to Hedera by the venue service.
  */
 
-/** Nonce for a desk wallet: relay's pending nonce plus intents already executed but not yet broadcast. */
-async function nextNonce(wallet: string) {
+/**
+ * Nonce for a desk wallet: the relay's pending nonce, or one past the highest nonce among this wallet's
+ * intents that are still pending or executed-but-not-yet-mined. Reading the wallet's own intents keeps
+ * two proposals from ever sharing a nonce, whatever the venue's records say.
+ */
+async function nextNonce(walletId: string, wallet: string) {
   const fields = await txFields(wallet);
-  const pending = trades
-    .read()
-    .trades.flatMap((t) => [t.approvals.seller, t.approvals.buyer])
-    .filter((a) => a.wallet.toLowerCase() === wallet.toLowerCase() && !a.txHash && a.intentStatus !== "rejected" && a.intentStatus !== "expired").length;
-  return { ...fields, nonce: fields.nonce + pending };
+  let next = fields.nonce;
+  try {
+    const page = await privy().intents().list({ resource_id: walletId, sort_by: "created_at_desc", limit: 50 } as never);
+    for (const it of page.getPaginatedItems() as unknown as { status: string; request_details?: { body?: { params?: { transaction?: { nonce?: number } } } } }[]) {
+      const n = it.request_details?.body?.params?.transaction?.nonce;
+      if (typeof n !== "number") continue;
+      if (it.status === "pending" || (it.status === "executed" && n >= fields.nonce)) next = Math.max(next, n + 1);
+    }
+  } catch {
+    // Fall back to the venue's own count of unbroadcast approvals.
+    const pending = trades.read().trades.flatMap((t) => [t.approvals.seller, t.approvals.buyer]).filter((a) => a.intentId && a.wallet.toLowerCase() === wallet.toLowerCase() && !a.txHash && a.intentStatus !== "rejected" && a.intentStatus !== "expired").length;
+    next = fields.nonce + pending;
+  }
+  return { ...fields, nonce: next };
 }
 
 export async function proposeDeskTx(input: { walletId: string; walletAddress: string; to: string; data: string; gasLimit?: number; extraPendingNonce?: number }) {
-  const fields = await nextNonce(input.walletAddress);
+  const fields = await nextNonce(input.walletId, input.walletAddress);
   const tx = {
     to: input.to,
     data: input.data,
